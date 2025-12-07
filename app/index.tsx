@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronLeft, ChevronRight, ChevronDown, RotateCw, Trophy, ArrowUp } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, ChevronDown, RotateCw, Trophy, ChevronsUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 16;
 const CELL_SIZE = (SCREEN_WIDTH - 32) / BOARD_WIDTH;
@@ -24,13 +25,77 @@ type TetrominoType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
 type GameState = 'attract' | 'playing' | 'gameover';
 
 const TETROMINOS: Record<TetrominoType, { shape: number[][]; color: string }> = {
-  I: { shape: [[1, 1, 1, 1]], color: '#00F0F0' },
-  O: { shape: [[1, 1], [1, 1]], color: '#F0F000' },
-  T: { shape: [[0, 1, 0], [1, 1, 1]], color: '#A000F0' },
-  S: { shape: [[0, 1, 1], [1, 1, 0]], color: '#00F000' },
-  Z: { shape: [[1, 1, 0], [0, 1, 1]], color: '#F00000' },
-  J: { shape: [[1, 0, 0], [1, 1, 1]], color: '#0000F0' },
-  L: { shape: [[0, 0, 1], [1, 1, 1]], color: '#F0A000' },
+  I: { shape: [[1, 1, 1, 1]], color: '#00E5E5' },
+  O: { shape: [[1, 1], [1, 1]], color: '#FFE500' },
+  T: { shape: [[0, 1, 0], [1, 1, 1]], color: '#D64DFF' },
+  S: { shape: [[0, 1, 1], [1, 1, 0]], color: '#00E500' },
+  Z: { shape: [[1, 1, 0], [0, 1, 1]], color: '#FF3333' },
+  J: { shape: [[1, 0, 0], [1, 1, 1]], color: '#3366FF' },
+  L: { shape: [[0, 0, 1], [1, 1, 1]], color: '#FF9933' },
+};
+
+const GridBackground = () => {
+  const gridLines = [];
+  const rows = 30;
+  const cols = 15;
+  
+  for (let i = 0; i <= rows; i++) {
+    gridLines.push(
+      <View 
+        key={`h-${i}`} 
+        style={[
+          styles.gridLine, 
+          styles.horizontalLine, 
+          { top: `${(i / rows) * 100}%` }
+        ]} 
+      />
+    );
+  }
+  
+  for (let i = 0; i <= cols; i++) {
+    gridLines.push(
+      <View 
+        key={`v-${i}`} 
+        style={[
+          styles.gridLine, 
+          styles.verticalLine, 
+          { left: `${(i / cols) * 100}%` }
+        ]} 
+      />
+    );
+  }
+  
+  return <View style={styles.gridContainer}>{gridLines}</View>;
+};
+
+const StarParticles = () => {
+  const stars = Array.from({ length: 50 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    size: Math.random() * 2 + 1,
+    opacity: Math.random() * 0.6 + 0.2,
+  }));
+
+  return (
+    <View style={styles.starsContainer}>
+      {stars.map((star) => (
+        <View
+          key={star.id}
+          style={[
+            styles.star,
+            {
+              left: `${star.left}%`,
+              top: `${star.top}%`,
+              width: star.size,
+              height: star.size,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
 };
 
 export default function TetrisGame() {
@@ -296,8 +361,6 @@ export default function TetrisGame() {
     }
   };
 
-
-
   const hardDrop = () => {
     if (!currentPiece || gameState !== 'playing') return;
     let dropY = currentPiece.y;
@@ -472,8 +535,15 @@ export default function TetrisGame() {
               <View
                 key={`mini-cell-${rowIndex}-${colIndex}`}
                 style={[
-                  { width: size, height: size },
-                  cell ? { backgroundColor: color, borderWidth: 0.5, borderColor: '#fff' } : {},
+                  { width: size, height: size, margin: 0.5 },
+                  cell ? { 
+                    backgroundColor: color, 
+                    borderRadius: 2,
+                    shadowColor: color,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 3,
+                  } : {},
                 ]}
               />
             ))}
@@ -489,8 +559,19 @@ export default function TetrisGame() {
       style={[
         styles.cell,
         { width: CELL_SIZE, height: CELL_SIZE },
-        color && !isGhost && { backgroundColor: color, borderColor: '#fff', borderWidth: 1 },
-        isGhost && { backgroundColor: color, opacity: 0.3, borderWidth: 1, borderColor: '#fff' },
+        color && !isGhost && { 
+          backgroundColor: color, 
+          borderRadius: 3,
+          shadowColor: color,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.6,
+          shadowRadius: 4,
+        },
+        isGhost && { 
+          backgroundColor: color, 
+          opacity: 0.25, 
+          borderRadius: 3,
+        },
         isFlashing && { backgroundColor: '#ffffff' },
       ]}
     />
@@ -554,136 +635,188 @@ export default function TetrisGame() {
   });
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateX: shakeAnim }] }]}>
-      <StatusBar hidden />
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#0a1628', '#162850', '#1a3566', '#162850', '#0a1628']}
+        locations={[0, 0.3, 0.5, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <GridBackground />
+      <StarParticles />
+      
+      <Animated.View style={[styles.content, { transform: [{ translateX: shakeAnim }] }]}>
+        <StatusBar hidden />
 
-      <View style={styles.header}>
-        <Text style={styles.bestScore}>BEST: {bestScore}</Text>
-        <Animated.Text style={[styles.scoreText, { textShadowColor: glowColor, textShadowRadius: 10 }]}>
-          {score}
-        </Animated.Text>
-        <View style={styles.timerContainer}>
-          <Text style={[styles.timer, timeLeft < 10 && gameState === 'playing' && styles.timerWarning]}>
-            {timeLeft.toFixed(1)}s
-          </Text>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.bestLabel}>BEST:</Text>
+            <Text style={styles.bestScore}>{bestScore}</Text>
+          </View>
           <Pressable style={styles.trophyButton}>
-            <Trophy color="#FFD700" size={24} />
+            <Trophy color="#C9A227" size={26} />
           </Pressable>
         </View>
-      </View>
 
-      <View style={styles.nextContainer}>
-        <Text style={styles.nextTitle}>NEXT</Text>
-        <View style={styles.nextQueue}>
-          {nextQueue.slice(0, 3).map((piece, index) => (
-            <View key={`next-${index}`} style={styles.nextPiecePreview}>
-              {renderMiniPiece(piece, CELL_SIZE * 0.65)}
-            </View>
-          ))}
+        <View style={styles.timerScoreRow}>
+          <Animated.Text style={[styles.scoreText, { textShadowColor: glowColor, textShadowRadius: 15 }]}>
+            SCORE: {score}
+          </Animated.Text>
+          <Text style={[styles.timer, timeLeft < 10 && gameState === 'playing' && styles.timerWarning]}>
+            {timeLeft.toFixed(1)}
+          </Text>
         </View>
-      </View>
 
-      <View style={styles.gameContainer}>
-        <View {...panResponder.panHandlers} style={styles.centerArea}>
-          <Pressable onPress={handleTapToStart} style={styles.boardWrapper}>
-            <View style={styles.boardContainer}>
-              {renderBoard()}
-            </View>
-
-            {(gameState === 'attract' || gameState === 'gameover') && (
-              <Animated.View
-                style={[
-                  styles.overlay,
-                  {
-                    opacity: gameState === 'attract' ? overlayOpacity : 1,
-                    transform: [{ scale: gameState === 'attract' ? overlayScale : 1 }],
-                  },
-                ]}
-              >
-                {gameState === 'attract' && (
-                  <Text style={styles.overlayText}>TAP ANYWHERE TO PLAY{'\n'}60-SECOND CHALLENGE</Text>
-                )}
-                {gameState === 'gameover' && (
-                  <View style={styles.gameOverContainer}>
-                    <Text style={styles.gameOverTitle}>TIME UP!</Text>
-                    <Text style={styles.finalScoreLabel}>YOUR SCORE</Text>
-                    <Text style={styles.finalScore}>{score.toLocaleString()}</Text>
-                    {isNewRecord && <Text style={styles.newRecord}>NEW PERSONAL BEST! 🔥</Text>}
-                    <Text style={styles.tapToRestart}>TAP TO PLAY AGAIN</Text>
-                  </View>
-                )}
-              </Animated.View>
-            )}
-          </Pressable>
+        <View style={styles.nextContainer}>
+          <Text style={styles.nextTitle}>NEXT</Text>
+          <View style={styles.nextQueue}>
+            {nextQueue.slice(0, 3).map((piece, index) => (
+              <View key={`next-${index}`} style={styles.nextPiecePreview}>
+                {renderMiniPiece(piece, CELL_SIZE * 0.55)}
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
 
-      {gameState === 'playing' && (
+        <View style={styles.gameContainer}>
+          <View {...panResponder.panHandlers} style={styles.centerArea}>
+            <Pressable onPress={handleTapToStart} style={styles.boardWrapper}>
+              <View style={styles.boardContainer}>
+                {renderBoard()}
+              </View>
+
+              {(gameState === 'attract' || gameState === 'gameover') && (
+                <Animated.View
+                  style={[
+                    styles.overlay,
+                    {
+                      opacity: gameState === 'attract' ? overlayOpacity : 1,
+                      transform: [{ scale: gameState === 'attract' ? overlayScale : 1 }],
+                    },
+                  ]}
+                >
+                  {gameState === 'attract' && (
+                    <View style={styles.attractContent}>
+                      <Text style={styles.overlayTitle}>TAP ANYWHERE{'\n'}TO PLAY</Text>
+                      <Text style={styles.overlaySubtitle}>60-SECOND CHALLENGE</Text>
+                    </View>
+                  )}
+                  {gameState === 'gameover' && (
+                    <View style={styles.gameOverContainer}>
+                      <Text style={styles.gameOverTitle}>TIME UP!</Text>
+                      <Text style={styles.finalScoreLabel}>YOUR SCORE</Text>
+                      <Text style={styles.finalScore}>{score.toLocaleString()}</Text>
+                      {isNewRecord && <Text style={styles.newRecord}>NEW PERSONAL BEST!</Text>}
+                      <Text style={styles.tapToRestart}>TAP TO PLAY AGAIN</Text>
+                    </View>
+                  )}
+                </Animated.View>
+              )}
+            </Pressable>
+          </View>
+        </View>
+
         <View style={styles.controls}>
-          <Pressable style={styles.controlButton} onPress={moveLeft}>
-            <ChevronLeft color="#fff" size={28} />
+          <Pressable style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]} onPress={moveLeft}>
+            <ChevronLeft color="#4A9FFF" size={32} strokeWidth={2.5} />
           </Pressable>
-          <Pressable style={styles.controlButton} onPress={moveRight}>
-            <ChevronRight color="#fff" size={28} />
+          <Pressable style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]} onPress={hardDrop}>
+            <ChevronsUp color="#4A9FFF" size={32} strokeWidth={2.5} />
           </Pressable>
-          <Pressable style={styles.controlButton} onPress={movePieceDown}>
-            <ChevronDown color="#fff" size={28} />
+          <Pressable style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]} onPress={movePieceDown}>
+            <ChevronDown color="#4A9FFF" size={32} strokeWidth={2.5} />
           </Pressable>
-          <Pressable style={styles.controlButton} onPress={rotate}>
-            <RotateCw color="#fff" size={28} />
+          <Pressable style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]} onPress={rotate}>
+            <RotateCw color="#4A9FFF" size={28} strokeWidth={2.5} />
           </Pressable>
-          <Pressable style={[styles.controlButton, styles.hardDropButton]} onPress={hardDrop}>
-            <ArrowUp color="#fff" size={28} />
+          <Pressable style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]} onPress={moveRight}>
+            <ChevronRight color="#4A9FFF" size={32} strokeWidth={2.5} />
           </Pressable>
         </View>
-      )}
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a1628',
+  },
+  content: {
+    flex: 1,
+  },
+  gridContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  gridLine: {
+    position: 'absolute' as const,
+    backgroundColor: 'rgba(100, 150, 255, 0.08)',
+  },
+  horizontalLine: {
+    left: 0,
+    right: 0,
+    height: 1,
+  },
+  verticalLine: {
+    top: 0,
+    bottom: 0,
+    width: 1,
+  },
+  starsContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  star: {
+    position: 'absolute' as const,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 55 : 25,
   },
-  bestScore: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
-  },
-  scoreText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'center',
-  },
-  timerContainer: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flex: 1,
-    justifyContent: 'flex-end',
+  },
+  bestLabel: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: '#ffffff',
+    letterSpacing: 1,
+  },
+  bestScore: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: '#ffffff',
+  },
+  trophyButton: {
+    padding: 8,
+  },
+  timerScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  scoreText: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: '#ffffff',
+    letterSpacing: 1,
   },
   timer: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: '#ffffff',
   },
   timerWarning: {
     color: '#ff4444',
-  },
-  trophyButton: {
-    padding: 4,
   },
   gameContainer: {
     flex: 1,
@@ -692,31 +825,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   nextContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
+    gap: 12,
   },
   nextTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontWeight: '700' as const,
+    color: 'rgba(255, 255, 255, 0.6)',
+    letterSpacing: 1,
   },
   nextQueue: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   nextPiecePreview: {
-    minHeight: CELL_SIZE * 1.8,
-    minWidth: CELL_SIZE * 1.8,
+    minHeight: CELL_SIZE * 1.6,
+    minWidth: CELL_SIZE * 1.6,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 4,
-    backgroundColor: 'rgba(42, 42, 62, 0.5)',
+    padding: 6,
+    backgroundColor: 'rgba(30, 60, 100, 0.4)',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 150, 255, 0.2)',
   },
   centerArea: {
     flex: 1,
@@ -727,88 +864,109 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   boardContainer: {
-    backgroundColor: '#0f0f1e',
-    padding: 4,
-    borderRadius: 8,
+    backgroundColor: 'rgba(10, 20, 40, 0.8)',
+    padding: 2,
+    borderRadius: 4,
     alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 150, 255, 0.15)',
   },
   row: {
     flexDirection: 'row',
   },
   cell: {
-    borderWidth: 0.5,
-    borderColor: '#2a2a3e',
+    margin: 1,
+    backgroundColor: 'rgba(30, 60, 100, 0.3)',
+    borderRadius: 2,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(10, 22, 40, 0.92)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    borderRadius: 8,
+    borderRadius: 4,
   },
-  overlayText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+  attractContent: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  overlayTitle: {
+    fontSize: 28,
+    fontWeight: '900' as const,
+    color: '#ffffff',
     textAlign: 'center',
-    textShadowColor: '#000',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
+    letterSpacing: 2,
+    textShadowColor: 'rgba(74, 159, 255, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  overlaySubtitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    letterSpacing: 2,
   },
   gameOverContainer: {
     alignItems: 'center',
     gap: 12,
   },
   gameOverTitle: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#ff4444',
-    textShadowColor: '#000',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
+    fontSize: 38,
+    fontWeight: '900' as const,
+    color: '#FF5555',
+    textShadowColor: 'rgba(255, 85, 85, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+    letterSpacing: 2,
   },
   finalScoreLabel: {
-    fontSize: 18,
-    color: '#aaa',
-    marginTop: 16,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 12,
+    letterSpacing: 2,
   },
   finalScore: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 44,
+    fontWeight: '900' as const,
+    color: '#ffffff',
   },
   newRecord: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700' as const,
     color: '#FFD700',
-    marginTop: 6,
+    marginTop: 8,
+    letterSpacing: 1,
   },
   tapToRestart: {
-    fontSize: 16,
-    color: '#fff',
-    marginTop: 24,
-    opacity: 0.8,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 20,
+    letterSpacing: 1,
   },
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
-    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingTop: 12,
   },
   controlButton: {
-    backgroundColor: '#2a2a3e',
-    borderRadius: 12,
-    padding: 12,
-    width: 64,
-    height: 64,
+    backgroundColor: 'rgba(20, 40, 80, 0.7)',
+    borderRadius: 16,
+    padding: 14,
+    width: 62,
+    height: 62,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(74, 159, 255, 0.5)',
   },
-  hardDropButton: {
-    backgroundColor: '#ff6b6b',
+  controlButtonPressed: {
+    backgroundColor: 'rgba(74, 159, 255, 0.3)',
+    borderColor: '#4A9FFF',
   },
 });
