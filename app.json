@@ -18,6 +18,7 @@
       "bundleIdentifier": "app.rork.quickdrop-tetris-challenge"
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -42,6 +43,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "3b71032d-59f1-43dc-8fae-a0b0f965b940"
+      }
     }
   }
 }
