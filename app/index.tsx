@@ -193,11 +193,9 @@ export default function TetrisGame() {
     // Initialize Firebase Anonymous Auth
     const initAuth = async () => {
       try {
-        if (Platform.OS !== "web") {
-          const current = auth().currentUser;
-          if (!current) {
-            await auth().signInAnonymously();
-          }
+        const current = auth().currentUser;
+        if (!current) {
+          await auth().signInAnonymously();
         }
       } catch (error) {
         console.error("Firebase auth error:", error);
@@ -222,27 +220,28 @@ export default function TetrisGame() {
       setBestScore(newScore);
 
       // Submit to Firestore
-      if (Platform.OS !== "web") {
-        const user = auth().currentUser;
-        if (user) {
-          const ref = firestore().collection("scores").doc(user.uid);
-          await firestore().runTransaction(async (tx: any) => {
-            const snap = await tx.get(ref);
-            const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
-            if (newScore > prev) {
-              tx.set(
-                ref,
-                {
-                  bestScore: newScore,
-                  displayName:
-                    user.displayName || `User-${user.uid.slice(0, 4)}`,
-                  updatedAt: firestore.FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-            }
-          });
-        }
+      const user = auth().currentUser;
+      if (user) {
+        const ref = firestore().collection("scores").doc(user.uid);
+        await firestore().runTransaction(async (tx: any) => {
+          const snap = await tx.get(ref);
+          const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+
+          // Format: User [4 digits of userId] - converted to uppercase for style
+          const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
+
+          if (newScore > prev) {
+            tx.set(
+              ref,
+              {
+                bestScore: newScore,
+                displayName: user.displayName || defaultName,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        });
       }
     } catch (error) {
       console.log("Failed to save best score:", error);
