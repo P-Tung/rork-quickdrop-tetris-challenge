@@ -8,12 +8,21 @@ import {
   Dimensions,
   Platform,
   PanResponder,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronLeft, ChevronRight, ChevronDown, RotateCw, Trophy, ChevronsUp } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  RotateCw,
+  Trophy,
+  ChevronsDown,
+} from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { auth, firestore } from "@/lib/firebase";
+import { LeaderboardModal } from "@/components/LeaderboardModal";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -110,6 +119,7 @@ export default function TetrisGame() {
   const [nextQueue, setNextQueue] = useState<TetrominoType[]>([]);
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [lineFlashRows, setLineFlashRows] = useState<number[]>([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const bagRef = useRef<TetrominoType[]>([]);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -130,6 +140,21 @@ export default function TetrisGame() {
     setNextQueue(initialQueue);
     spawnPiece(initialQueue[0], Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(null)));
     startAttractMode();
+
+    // Initialize Firebase Anonymous Auth
+    const initAuth = async () => {
+      try {
+        if (Platform.OS !== "web") {
+          const current = auth().currentUser;
+          if (!current) {
+            await auth().signInAnonymously();
+          }
+        }
+      } catch (error) {
+        console.error("Firebase auth error:", error);
+      }
+    };
+    initAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -146,6 +171,30 @@ export default function TetrisGame() {
     try {
       await AsyncStorage.setItem('tetris_best_score', newScore.toString());
       setBestScore(newScore);
+
+      // Submit to Firestore
+      if (Platform.OS !== "web") {
+        const user = auth().currentUser;
+        if (user) {
+          const ref = firestore().collection("scores").doc(user.uid);
+          await firestore().runTransaction(async (tx: any) => {
+            const snap = await tx.get(ref);
+            const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+            if (newScore > prev) {
+              tx.set(
+                ref,
+                {
+                  bestScore: newScore,
+                  displayName:
+                    user.displayName || `User-${user.uid.slice(0, 4)}`,
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
+          });
+        }
+      }
     } catch (error) {
       console.log('Failed to save best score:', error);
     }
@@ -559,17 +608,18 @@ export default function TetrisGame() {
       style={[
         styles.cell,
         { width: CELL_SIZE, height: CELL_SIZE },
-        color && !isGhost && { 
-          backgroundColor: color, 
-          borderRadius: 3,
-          shadowColor: color,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.6,
-          shadowRadius: 4,
-        },
-        isGhost && { 
-          backgroundColor: color, 
-          opacity: 0.25, 
+        color &&
+          !isGhost && {
+            backgroundColor: color,
+            borderRadius: 3,
+            shadowColor: color,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.6,
+            shadowRadius: 4,
+          },
+        isGhost && {
+          backgroundColor: color ?? undefined,
+          opacity: 0.25,
           borderRadius: 3,
         },
         isFlashing && { backgroundColor: '#ffffff' },
@@ -652,7 +702,10 @@ export default function TetrisGame() {
             <Text style={styles.bestLabel}>BEST:</Text>
             <Text style={styles.bestScore}>{bestScore}</Text>
           </View>
-          <Pressable style={styles.trophyButton}>
+          <Pressable
+            style={styles.trophyButton}
+            onPress={() => setShowLeaderboard(true)}
+          >
             <Trophy color="#C9A227" size={26} />
           </Pressable>
         </View>
@@ -733,6 +786,11 @@ export default function TetrisGame() {
           </Pressable>
         </View>
       </Animated.View>
+
+      <LeaderboardModal
+        isVisible={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+      />
     </View>
   );
 }
