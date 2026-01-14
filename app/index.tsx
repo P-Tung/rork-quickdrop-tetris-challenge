@@ -17,7 +17,7 @@ import {
   ChevronDown,
   RotateCw,
   Trophy,
-  ChevronsUp,
+  ChevronsDown,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -172,6 +172,22 @@ export default function TetrisGame() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dropTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scoreRef = useRef(0);
+  const bestScoreRef = useRef(0);
+  const boardRef = useRef(board);
+
+  // Keep refs in sync with state for use in timers
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]);
+
+  useEffect(() => {
+    bestScoreRef.current = bestScore;
+  }, [bestScore]);
+
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   useEffect(() => {
     loadBestScore();
@@ -303,10 +319,10 @@ export default function TetrisGame() {
       setCurrentPiece((prev) => {
         if (!prev) return prev;
         const shape = getRotatedShape(prev.type, prev.rotation);
-        if (!checkCollision(prev.x, prev.y + 1, shape, board)) {
+        if (!checkCollision(prev.x, prev.y + 1, shape, boardRef.current)) {
           return { ...prev, y: prev.y + 1 };
         } else {
-          lockPieceInternal(prev, board);
+          lockPieceInternal(prev, boardRef.current);
           return prev;
         }
       });
@@ -316,6 +332,7 @@ export default function TetrisGame() {
   const startGame = () => {
     setGameState("playing");
     setTimeLeft(60);
+    setScore(0);
     setIsNewRecord(false);
 
     Animated.timing(overlayOpacity, {
@@ -329,10 +346,10 @@ export default function TetrisGame() {
       setCurrentPiece((prev) => {
         if (!prev) return prev;
         const shape = getRotatedShape(prev.type, prev.rotation);
-        if (!checkCollision(prev.x, prev.y + 1, shape, board)) {
+        if (!checkCollision(prev.x, prev.y + 1, shape, boardRef.current)) {
           return { ...prev, y: prev.y + 1 };
         } else {
-          setTimeout(() => lockPieceInternal(prev, board), 0);
+          setTimeout(() => lockPieceInternal(prev, boardRef.current), 0);
           return prev;
         }
       });
@@ -356,9 +373,10 @@ export default function TetrisGame() {
 
     setGameState("gameover");
 
-    if (score > bestScore) {
+    const finalScore = scoreRef.current;
+    if (finalScore > bestScoreRef.current) {
       setIsNewRecord(true);
-      saveBestScore(score);
+      saveBestScore(finalScore);
     }
   };
 
@@ -887,7 +905,7 @@ export default function TetrisGame() {
             ]}
             onPress={hardDrop}
           >
-            <ChevronsUp color="#4A9FFF" size={32} strokeWidth={2.5} />
+            <ChevronsDown color="#4A9FFF" size={32} strokeWidth={2.5} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [
