@@ -2,7 +2,7 @@
   "expo": {
     "name": "QuickDrop Tetris Challenge",
     "slug": "quickdrop-tetris-challenge",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rork-app",
@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.quickdrop-tetris-challenge"
+      "bundleIdentifier": "app.rork.quickdrop-tetris-challenge",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,6 +24,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "app.rork.quickdrop_tetris_challenge",
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "permissions": ["android.permission.VIBRATE"]
     },
@@ -41,6 +43,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "3b71032d-59f1-43dc-8fae-a0b0f965b940"
+      }
     }
   }
 }
