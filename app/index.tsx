@@ -29,6 +29,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 16;
 const CELL_SIZE = (SCREEN_WIDTH - 32) / BOARD_WIDTH;
+const INITIAL_DROP_SPEED = 230; // Lower is faster (ms)
 
 type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 type GameState = "attract" | "playing" | "gameover";
@@ -353,7 +354,7 @@ export default function TetrisGame() {
           return prev;
         }
       });
-    }, 800);
+    }, INITIAL_DROP_SPEED);
 
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
