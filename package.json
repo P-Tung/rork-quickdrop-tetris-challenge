@@ -8,7 +8,9 @@
     "start-web-dev": "DEBUG=expo* bunx rork start -p irhd83f5xn9silo69s0jk --web --tunnel",
     "lint": "expo lint",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "android-build": "npx eas build --platform android",
+    "ios-build": "npx eas build --platform ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
