@@ -133,9 +133,24 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
     try {
       if (currentUserId) {
-        await firestore().collection("scores").doc(currentUserId).update({
-          displayName: newName.trim(),
-        });
+        const userDocRef = firestore().collection("scores").doc(currentUserId);
+        const userDoc = await userDocRef.get();
+
+        if (!userDoc.exists) {
+          // If doc doesn't exist, create it with initial score 0
+          await userDocRef.set({
+            displayName: newName.trim(),
+            bestScore: 0,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          // If doc exists, just update name
+          await userDocRef.update({
+            displayName: newName.trim(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
         setRenameModalVisible(false);
         setNewName("");
         setShowTooltip(false);
