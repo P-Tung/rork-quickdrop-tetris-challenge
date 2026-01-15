@@ -29,7 +29,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 16;
 const CELL_SIZE = (SCREEN_WIDTH - 32) / BOARD_WIDTH;
-const INITIAL_DROP_SPEED = 230; // Lower is faster (ms)
+const INITIAL_DROP_SPEED = 200; // Lower is faster (ms)
 
 type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 type GameState = "attract" | "playing" | "gameover";
@@ -176,6 +176,15 @@ export default function TetrisGame() {
   const scoreRef = useRef(0);
   const bestScoreRef = useRef(0);
   const boardRef = useRef(board);
+  const gameStateRef = useRef<GameState>(gameState);
+
+  const updateBoard = (newBoard: (string | null)[][]) => {
+    boardRef.current = newBoard;
+    setBoard(newBoard);
+  };
+  const [gameoverReason, setGameoverReason] = useState<
+    "time" | "collision" | null
+  >(null);
 
   // Keep refs in sync with state for use in timers
   useEffect(() => {
@@ -187,8 +196,8 @@ export default function TetrisGame() {
   }, [bestScore]);
 
   useEffect(() => {
-    boardRef.current = board;
-  }, [board]);
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   useEffect(() => {
     loadBestScore();
@@ -290,8 +299,8 @@ export default function TetrisGame() {
     const newPiece = { type, x: startX, y: 0, rotation: 0 };
 
     if (checkCollision(startX, 0, shape, currentBoard)) {
-      if (gameState === "playing") {
-        endGame();
+      if (gameStateRef.current === "playing") {
+        endGame("collision");
       }
       return;
     }
@@ -342,6 +351,15 @@ export default function TetrisGame() {
       useNativeDriver: true,
     }).start();
 
+    // Clear board for fresh start
+    setBoard(
+      Array(BOARD_HEIGHT)
+        .fill(null)
+        .map(() => Array(BOARD_WIDTH).fill(null))
+    );
+    setScore(0);
+    setGameoverReason(null);
+
     if (dropTimerRef.current) clearInterval(dropTimerRef.current);
     dropTimerRef.current = setInterval(() => {
       setCurrentPiece((prev) => {
@@ -350,8 +368,9 @@ export default function TetrisGame() {
         if (!checkCollision(prev.x, prev.y + 1, shape, boardRef.current)) {
           return { ...prev, y: prev.y + 1 };
         } else {
+          // Lock piece immediately and prevent further moves in this tick
           setTimeout(() => lockPieceInternal(prev, boardRef.current), 0);
-          return prev;
+          return null; // Remove current piece during locking to prevent race conditions
         }
       });
     }, INITIAL_DROP_SPEED);
@@ -360,7 +379,7 @@ export default function TetrisGame() {
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 0.1) {
-          setTimeout(() => endGame(), 0);
+          setTimeout(() => endGame("time"), 0);
           return 0;
         }
         return Math.max(0, prev - 0.1);
@@ -368,11 +387,12 @@ export default function TetrisGame() {
     }, 100);
   };
 
-  const endGame = () => {
+  const endGame = (reason: "time" | "collision") => {
     if (dropTimerRef.current) clearInterval(dropTimerRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
 
     setGameState("gameover");
+    setGameoverReason(reason);
 
     const finalScore = scoreRef.current;
     if (finalScore > bestScoreRef.current) {
@@ -393,11 +413,12 @@ export default function TetrisGame() {
 
     bagRef.current = newBag;
     setNextQueue(initialQueue);
-    setBoard(emptyBoard);
+    updateBoard(emptyBoard);
     setScore(0);
     setGameState("attract");
     setTimeLeft(60);
     setLineFlashRows([]);
+    setGameoverReason(null);
 
     spawnPiece(initialQueue[0], emptyBoard);
 
@@ -533,7 +554,7 @@ export default function TetrisGame() {
       }
     }
 
-    setBoard(newBoard);
+    updateBoard(newBoard);
     checkLines(newBoard);
     spawnNextPiece(newBoard);
   };
@@ -595,7 +616,7 @@ export default function TetrisGame() {
         while (newBoard.length < BOARD_HEIGHT) {
           newBoard.unshift(Array(BOARD_WIDTH).fill(null));
         }
-        setBoard(newBoard);
+        updateBoard(newBoard);
         setLineFlashRows([]);
 
         const lineScores = [0, 100, 300, 500, 800];
@@ -872,7 +893,9 @@ export default function TetrisGame() {
                   )}
                   {gameState === "gameover" && (
                     <View style={styles.gameOverContainer}>
-                      <Text style={styles.gameOverTitle}>TIME UP!</Text>
+                      <Text style={styles.gameOverTitle}>
+                        {gameoverReason === "time" ? "TIME UP!" : "GAME OVER"}
+                      </Text>
                       <Text style={styles.finalScoreLabel}>YOUR SCORE</Text>
                       <Text style={styles.finalScore}>
                         {score.toLocaleString()}
