@@ -43,6 +43,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   const [newName, setNewName] = useState("");
   const [showTooltip, setShowTooltip] = useState(false);
   const [isUserVisible, setIsUserVisible] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const viewabilityConfig = React.useRef({
     itemVisiblePercentThreshold: 50,
@@ -169,9 +170,16 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected && state.isInternetReachable && isVisible) {
+      const offline = !state.isConnected || !state.isInternetReachable;
+      setIsOffline(offline);
+      if (!offline && isVisible) {
         fetchScores(auth().currentUser?.uid);
       }
+    });
+
+    // Check initial state
+    NetInfo.fetch().then((state) => {
+      setIsOffline(!state.isConnected || !state.isInternetReachable);
     });
 
     return () => unsubscribe();
@@ -301,6 +309,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         onRequestClose={onClose}
       >
         <View style={styles.modalOverlay}>
+          <Pressable style={styles.backdrop} onPress={onClose} />
           <LinearGradient
             colors={["#1a3566", "#0a1628"]}
             style={styles.modalContent}
@@ -308,7 +317,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <View style={styles.header}>
               <View style={styles.titleRow}>
                 <Trophy color="#FFD700" size={32} />
-                <Text style={styles.title}>LEADERBOARD</Text>
+                <Text
+                  style={styles.title}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {isOffline ? "OFFLINE LEADERBOARD" : "LEADERBOARD"}
+                </Text>
               </View>
               <Pressable onPress={onClose} style={styles.closeButton}>
                 <X color="#fff" size={28} />
@@ -396,6 +411,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   modalContent: {
     width: "100%",
     height: "80%",
@@ -413,15 +431,19 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
   titleRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginRight: 10,
+    maxWidth: "85%",
   },
   title: {
     fontSize: 24,
     fontWeight: "900",
     color: "#fff",
-    letterSpacing: 2,
+    letterSpacing: 1,
+    flexShrink: 1,
   },
   closeButton: {
     padding: 4,
