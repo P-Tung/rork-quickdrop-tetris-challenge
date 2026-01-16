@@ -14,6 +14,8 @@ import {
 import { Trophy, X, Medal } from "lucide-react-native";
 import { firestore, auth } from "@/lib/firebase";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 
 interface LeaderboardEntry {
   id: string;
@@ -56,6 +58,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   const fetchScores = useCallback(
     async (uid?: string) => {
       try {
+        const state = await NetInfo.fetch();
+        if (!state.isConnected) {
+          await loadCachedData();
+          setLoading(false);
+          return;
+        }
+
         setLoading(true);
         const snap = await firestore()
           .collection("scores")
@@ -70,6 +79,10 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         })) as LeaderboardEntry[];
 
         setScores(leaderboardData);
+        await AsyncStorage.setItem(
+          "leaderboard_cache",
+          JSON.stringify(leaderboardData)
+        );
 
         // Set current user entry for footer (will be hidden if visible in list)
         const userId = uid || currentUserId;
@@ -78,11 +91,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             (entry) => entry.id === userId
           );
 
+          let userEntry: LeaderboardEntry | null = null;
+
           if (userIndex !== -1) {
-            setCurrentUserScoreEntry({
+            userEntry = {
               ...leaderboardData[userIndex],
               rank: userIndex + 1,
-            });
+            };
           } else {
             const userDoc = await firestore()
               .collection("scores")
@@ -90,30 +105,57 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               .get();
             if (userDoc.exists) {
               const data = userDoc.data();
-              setCurrentUserScoreEntry({
+              userEntry = {
                 id: userDoc.id,
                 ...data,
                 rank: undefined,
-              } as LeaderboardEntry);
+              } as LeaderboardEntry;
             } else {
               // Mock entry for 0 score
-              setCurrentUserScoreEntry({
+              userEntry = {
                 id: userId,
                 bestScore: 0,
                 displayName: "",
                 updatedAt: new Date(),
-              });
+              };
             }
+          }
+
+          if (userEntry) {
+            setCurrentUserScoreEntry(userEntry);
+            await AsyncStorage.setItem(
+              "user_score_entry_cache",
+              JSON.stringify(userEntry)
+            );
           }
         }
       } catch (error) {
         console.error("Error fetching leaderboard:", error);
+        await loadCachedData();
       } finally {
         setLoading(false);
       }
     },
     [currentUserId]
   );
+
+  const loadCachedData = async () => {
+    try {
+      const cachedScores = await AsyncStorage.getItem("leaderboard_cache");
+      const cachedUserEntry = await AsyncStorage.getItem(
+        "user_score_entry_cache"
+      );
+
+      if (cachedScores) {
+        setScores(JSON.parse(cachedScores));
+      }
+      if (cachedUserEntry) {
+        setCurrentUserScoreEntry(JSON.parse(cachedUserEntry));
+      }
+    } catch (error) {
+      console.error("Error loading cached leaderboard data:", error);
+    }
+  };
 
   useEffect(() => {
     if (isVisible) {
@@ -123,6 +165,16 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       }
       fetchScores(user?.uid);
     }
+  }, [isVisible, fetchScores]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable && isVisible) {
+        fetchScores(auth().currentUser?.uid);
+      }
+    });
+
+    return () => unsubscribe();
   }, [isVisible, fetchScores]);
 
   // Tooltip logic: show every time if name is empty/default, hide after 10s

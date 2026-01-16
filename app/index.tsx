@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth, firestore } from "@/lib/firebase";
 import { LeaderboardModal } from "@/components/LeaderboardModal";
+import NetInfo from "@react-native-community/netinfo";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -228,8 +229,52 @@ export default function TetrisGame() {
       }
     };
     initAuth();
+
+    // Sync score when coming online
+    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable) {
+        syncBestScoreWithRemote();
+      }
+    });
+
+    return () => {
+      unsubscribeNetInfo();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const syncBestScoreWithRemote = async () => {
+    try {
+      const stored = await AsyncStorage.getItem("tetris_best_score");
+      if (!stored) return;
+
+      const localScore = parseInt(stored, 10);
+      const user = auth().currentUser;
+      if (!user) return;
+
+      const ref = firestore().collection("scores").doc(user.uid);
+      await firestore().runTransaction(async (tx: any) => {
+        const snap = await tx.get(ref);
+        const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+
+        if (localScore > prev) {
+          const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
+          tx.set(
+            ref,
+            {
+              bestScore: localScore,
+              displayName: user.displayName || defaultName,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          console.log("Synced offline score to remote:", localScore);
+        }
+      });
+    } catch (error) {
+      console.log("Failed to sync best score:", error);
+    }
+  };
 
   const loadBestScore = async () => {
     try {
@@ -245,29 +290,34 @@ export default function TetrisGame() {
       await AsyncStorage.setItem("tetris_best_score", newScore.toString());
       setBestScore(newScore);
 
-      // Submit to Firestore
-      const user = auth().currentUser;
-      if (user) {
-        const ref = firestore().collection("scores").doc(user.uid);
-        await firestore().runTransaction(async (tx: any) => {
-          const snap = await tx.get(ref);
-          const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+      // Check connectivity and submit to Firestore
+      const state = await NetInfo.fetch();
+      if (state.isConnected && state.isInternetReachable) {
+        const user = auth().currentUser;
+        if (user) {
+          const ref = firestore().collection("scores").doc(user.uid);
+          await firestore().runTransaction(async (tx: any) => {
+            const snap = await tx.get(ref);
+            const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
 
-          // Format: User [4 digits of userId] - converted to uppercase for style
-          const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
+            // Format: User [4 digits of userId] - converted to uppercase for style
+            const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
 
-          if (newScore > prev) {
-            tx.set(
-              ref,
-              {
-                bestScore: newScore,
-                displayName: user.displayName || defaultName,
-                updatedAt: firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          }
-        });
+            if (newScore > prev) {
+              tx.set(
+                ref,
+                {
+                  bestScore: newScore,
+                  displayName: user.displayName || defaultName,
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
+          });
+        }
+      } else {
+        console.log("Offline: Score saved locally only.");
       }
     } catch (error) {
       console.log("Failed to save best score:", error);
