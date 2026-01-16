@@ -20,6 +20,7 @@ interface LeaderboardEntry {
   bestScore: number;
   displayName: string;
   updatedAt: any;
+  rank?: number;
 }
 
 interface LeaderboardModalProps {
@@ -39,6 +40,18 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
   const [showTooltip, setShowTooltip] = useState(false);
+  const [isUserVisible, setIsUserVisible] = useState(false);
+
+  const viewabilityConfig = React.useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const onViewableItemsChanged = React.useRef(({ viewableItems }: any) => {
+    const isVisible = viewableItems.some(
+      (v: any) => v.item.id === auth().currentUser?.uid
+    );
+    setIsUserVisible(isVisible);
+  }).current;
 
   const fetchScores = useCallback(
     async (uid?: string) => {
@@ -58,13 +71,19 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
         setScores(leaderboardData);
 
-        // Check if current user is in top 50
+        // Set current user entry for footer (will be hidden if visible in list)
         const userId = uid || currentUserId;
         if (userId) {
-          const isUserInTop = leaderboardData.some(
+          const userIndex = leaderboardData.findIndex(
             (entry) => entry.id === userId
           );
-          if (!isUserInTop) {
+
+          if (userIndex !== -1) {
+            setCurrentUserScoreEntry({
+              ...leaderboardData[userIndex],
+              rank: userIndex + 1,
+            });
+          } else {
             const userDoc = await firestore()
               .collection("scores")
               .doc(userId)
@@ -74,6 +93,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               setCurrentUserScoreEntry({
                 id: userDoc.id,
                 ...data,
+                rank: undefined,
               } as LeaderboardEntry);
             } else {
               // Mock entry for 0 score
@@ -84,8 +104,6 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 updatedAt: new Date(),
               });
             }
-          } else {
-            setCurrentUserScoreEntry(null);
           }
         }
       } catch (error) {
@@ -184,10 +202,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     return (
       <View style={[styles.entryRow, isCurrentUser && styles.highlightedRow]}>
         <View style={styles.rankContainer}>
-          {isTopThree ? (
+          {isTopThree && index >= 0 ? (
             <Medal color={colors[index]} size={24} />
           ) : (
-            <Text style={styles.rankText}>{index >= 0 ? index + 1 : "-"}</Text>
+            <Text style={styles.rankText}>
+              {item.rank ? item.rank : index >= 0 ? index + 1 : "-"}
+            </Text>
           )}
         </View>
         <View style={styles.nameSection}>
@@ -253,7 +273,10 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   data={scores}
                   keyExtractor={(item) => item.id}
                   renderItem={renderItem}
+                  style={styles.flatList}
                   contentContainerStyle={styles.listContent}
+                  onViewableItemsChanged={onViewableItemsChanged}
+                  viewabilityConfig={viewabilityConfig}
                   ListEmptyComponent={
                     <View style={styles.center}>
                       <Text style={styles.emptyText}>
@@ -262,7 +285,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                     </View>
                   }
                 />
-                {currentUserScoreEntry && (
+                {currentUserScoreEntry && !isUserVisible && (
                   <View style={styles.footerContainer}>
                     <View style={styles.separator} />
                     {renderItem({ item: currentUserScoreEntry, index: -1 })}
@@ -352,6 +375,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   mainContainer: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  flatList: {
     flex: 1,
   },
   listContent: {
