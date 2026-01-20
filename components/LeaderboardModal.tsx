@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Trophy, X, Medal } from "lucide-react-native";
 import { firestore, auth } from "@/lib/firebase";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,6 +35,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   isVisible,
   onClose,
 }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [scores, setScores] = useState<LeaderboardEntry[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   const onViewableItemsChanged = React.useRef(({ viewableItems }: any) => {
     const isVisible = viewableItems.some(
-      (v: any) => v.item.id === auth().currentUser?.uid
+      (v: any) => v.item.id === auth().currentUser?.uid,
     );
     setIsUserVisible(isVisible);
   }).current;
@@ -82,14 +84,14 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         setScores(leaderboardData);
         await AsyncStorage.setItem(
           "leaderboard_cache",
-          JSON.stringify(leaderboardData)
+          JSON.stringify(leaderboardData),
         );
 
         // Set current user entry for footer (will be hidden if visible in list)
         const userId = uid || currentUserId;
         if (userId) {
           const userIndex = leaderboardData.findIndex(
-            (entry) => entry.id === userId
+            (entry) => entry.id === userId,
           );
 
           let userEntry: LeaderboardEntry | null = null;
@@ -126,7 +128,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             setCurrentUserScoreEntry(userEntry);
             await AsyncStorage.setItem(
               "user_score_entry_cache",
-              JSON.stringify(userEntry)
+              JSON.stringify(userEntry),
             );
           }
         }
@@ -137,14 +139,14 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         setLoading(false);
       }
     },
-    [currentUserId]
+    [currentUserId],
   );
 
   const loadCachedData = async () => {
     try {
       const cachedScores = await AsyncStorage.getItem("leaderboard_cache");
       const cachedUserEntry = await AsyncStorage.getItem(
-        "user_score_entry_cache"
+        "user_score_entry_cache",
       );
 
       if (cachedScores) {
@@ -353,7 +355,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   }
                 />
                 {currentUserScoreEntry && !isUserVisible && (
-                  <View style={styles.footerContainer}>
+                  <View
+                    style={[
+                      styles.footerContainer,
+                      { paddingBottom: Math.max(insets.bottom, 24) },
+                    ]}
+                  >
                     <View style={styles.separator} />
                     {renderItem({ item: currentUserScoreEntry, index: -1 })}
                   </View>
@@ -547,7 +554,7 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     padding: 16,
-    paddingBottom: 24, // Extra padding at the very bottom
+    paddingBottom: 0, // Handled by insets
     backgroundColor: "#0a1628", // Solid background to avoid overlapping issues
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",

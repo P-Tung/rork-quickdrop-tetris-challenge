@@ -9,6 +9,7 @@ import {
   Platform,
   PanResponder,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -28,8 +29,8 @@ import NetInfo from "@react-native-community/netinfo";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const BOARD_WIDTH = 10;
-const BOARD_HEIGHT = 16;
-const CELL_SIZE = (SCREEN_WIDTH - 32) / BOARD_WIDTH;
+const BOARD_HEIGHT = 14; // Reduced further to 14 rows for more breathing room
+const CELL_SIZE = (SCREEN_WIDTH - 64) / BOARD_WIDTH; // Reduced width to ensure height fits
 const INITIAL_DROP_SPEED = 200; // Lower is faster (ms)
 
 type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
@@ -96,7 +97,7 @@ const GridBackground = () => {
           styles.horizontalLine,
           { top: `${(i / rows) * 100}%` },
         ]}
-      />
+      />,
     );
   }
 
@@ -109,7 +110,7 @@ const GridBackground = () => {
           styles.verticalLine,
           { left: `${(i / cols) * 100}%` },
         ]}
-      />
+      />,
     );
   }
 
@@ -147,11 +148,12 @@ const StarParticles = () => {
 };
 
 export default function TetrisGame() {
+  const insets = useSafeAreaInsets();
   const [gameState, setGameState] = useState<GameState>("attract");
   const [board, setBoard] = useState<(string | null)[][]>(() =>
     Array(BOARD_HEIGHT)
       .fill(null)
-      .map(() => Array(BOARD_WIDTH).fill(null))
+      .map(() => Array(BOARD_WIDTH).fill(null)),
   );
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
@@ -213,7 +215,7 @@ export default function TetrisGame() {
       initialQueue[0],
       Array(BOARD_HEIGHT)
         .fill(null)
-        .map(() => Array(BOARD_WIDTH).fill(null))
+        .map(() => Array(BOARD_WIDTH).fill(null)),
     );
     startAttractMode();
 
@@ -255,7 +257,7 @@ export default function TetrisGame() {
       const ref = firestore().collection("scores").doc(user.uid);
       await firestore().runTransaction(async (tx: any) => {
         const snap = await tx.get(ref);
-        const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+        const prev = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
 
         if (localScore > prev) {
           const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
@@ -266,7 +268,7 @@ export default function TetrisGame() {
               displayName: user.displayName || defaultName,
               updatedAt: firestore.FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            { merge: true },
           );
           console.log("Synced offline score to remote:", localScore);
         }
@@ -298,7 +300,7 @@ export default function TetrisGame() {
           const ref = firestore().collection("scores").doc(user.uid);
           await firestore().runTransaction(async (tx: any) => {
             const snap = await tx.get(ref);
-            const prev = snap.exists ? snap.data()?.bestScore ?? 0 : 0;
+            const prev = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
 
             // Format: User [4 digits of userId] - converted to uppercase for style
             const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
@@ -311,7 +313,7 @@ export default function TetrisGame() {
                   displayName: user.displayName || defaultName,
                   updatedAt: firestore.FieldValue.serverTimestamp(),
                 },
-                { merge: true }
+                { merge: true },
               );
             }
           });
@@ -342,7 +344,7 @@ export default function TetrisGame() {
 
   const spawnPiece = (
     type: TetrominoType,
-    currentBoard: (string | null)[][]
+    currentBoard: (string | null)[][],
   ) => {
     const shape = TETROMINOS[type].shape;
     const startX = Math.floor((BOARD_WIDTH - shape[0].length) / 2);
@@ -371,7 +373,7 @@ export default function TetrisGame() {
           duration: 800,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
 
     if (dropTimerRef.current) clearInterval(dropTimerRef.current);
@@ -405,7 +407,7 @@ export default function TetrisGame() {
     setBoard(
       Array(BOARD_HEIGHT)
         .fill(null)
-        .map(() => Array(BOARD_WIDTH).fill(null))
+        .map(() => Array(BOARD_WIDTH).fill(null)),
     );
     setScore(0);
     setGameoverReason(null);
@@ -485,7 +487,7 @@ export default function TetrisGame() {
     let shape = TETROMINOS[type].shape;
     for (let i = 0; i < rotation % 4; i++) {
       shape = shape[0].map((_, colIndex) =>
-        shape.map((row) => row[colIndex]).reverse()
+        shape.map((row) => row[colIndex]).reverse(),
       );
     }
     return shape;
@@ -495,7 +497,7 @@ export default function TetrisGame() {
     x: number,
     y: number,
     shape: number[][],
-    currentBoard: (string | null)[][]
+    currentBoard: (string | null)[][],
   ) => {
     for (let row = 0; row < shape.length; row++) {
       for (let col = 0; col < shape[row].length; col++) {
@@ -586,7 +588,7 @@ export default function TetrisGame() {
 
   const lockPieceInternal = (
     piece: { type: TetrominoType; x: number; y: number; rotation: number },
-    currentBoard: (string | null)[][]
+    currentBoard: (string | null)[][],
   ) => {
     const shape = getRotatedShape(piece.type, piece.rotation);
     const color = TETROMINOS[piece.type].color;
@@ -661,7 +663,7 @@ export default function TetrisGame() {
 
       setTimeout(() => {
         const newBoard = currentBoard.filter(
-          (_, index) => !fullLines.includes(index)
+          (_, index) => !fullLines.includes(index),
         );
         while (newBoard.length < BOARD_HEIGHT) {
           newBoard.unshift(Array(BOARD_WIDTH).fill(null));
@@ -722,7 +724,7 @@ export default function TetrisGame() {
           }
         }
       },
-    })
+    }),
   ).current;
 
   const renderMiniPiece = (type: TetrominoType, size: number) => {
@@ -761,7 +763,7 @@ export default function TetrisGame() {
     color: string | null,
     key: string,
     isFlashing: boolean,
-    isGhost: boolean
+    isGhost: boolean,
   ) => (
     <View
       key={key}
@@ -843,7 +845,7 @@ export default function TetrisGame() {
               color,
               `cell-${rowIndex}-${colIndex}`,
               isFlashing,
-              isGhost
+              isGhost,
             );
           })}
         </View>
@@ -869,9 +871,9 @@ export default function TetrisGame() {
       <Animated.View
         style={[styles.content, { transform: [{ translateX: shakeAnim }] }]}
       >
-        <StatusBar hidden />
+        <StatusBar style="light" translucent />
 
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <View style={styles.headerLeft}>
             <Text style={styles.bestLabel}>BEST:</Text>
             <Text style={styles.bestScore}>{bestScore}</Text>
@@ -915,7 +917,10 @@ export default function TetrisGame() {
         </View>
 
         <View style={styles.gameContainer}>
-          <View {...panResponder.panHandlers} style={styles.centerArea}>
+          <View
+            {...panResponder.panHandlers}
+            style={[styles.centerArea, { paddingVertical: 10 }]}
+          >
             <Pressable onPress={handleTapToStart} style={styles.boardWrapper}>
               <View style={styles.boardContainer}>{renderBoard()}</View>
 
@@ -962,7 +967,15 @@ export default function TetrisGame() {
           </View>
         </View>
 
-        <View style={styles.controls}>
+        <View
+          style={[
+            styles.controls,
+            {
+              paddingBottom: Math.max(insets.bottom, 24),
+              marginBottom: 16,
+            },
+          ]}
+        >
           <Pressable
             style={({ pressed }) => [
               styles.controlButton,
@@ -1058,7 +1071,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 55 : 25,
+    paddingTop: 0, // Handled by insets
   },
   headerLeft: {
     flexDirection: "row",
@@ -1105,6 +1118,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   nextContainer: {
     flexDirection: "row",
@@ -1233,7 +1247,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    paddingBottom: 0, // Handled by insets
     paddingTop: 12,
   },
   controlButton: {
