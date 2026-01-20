@@ -10,7 +10,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "android-build": "npx eas build --platform android",
-    "ios-build": "npx eas build --platform ios"
+    "ios-build": "npx eas build --platform ios",
+    "android-build-local": "npx eas build --platform android --profile production --local",
+    "ios-build-local": "npx eas build --platform ios --profile production --local"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
