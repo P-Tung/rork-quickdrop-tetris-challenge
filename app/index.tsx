@@ -21,6 +21,7 @@ import { LeaderboardModal } from "@/components/LeaderboardModal";
 import NetInfo from "@react-native-community/netinfo";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 14; // Reduced further to 14 rows for more breathing room
@@ -190,6 +191,10 @@ export default function TetrisGame() {
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [lineFlashRows, setLineFlashRows] = useState<number[]>([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [floatingPoints, setFloatingPoints] = useState<
+    { id: number; value: number; x: number; y: number }[]
+  >([]);
+  const nextFloatingId = useRef(0);
 
   const bagRef = useRef<TetrominoType[]>([]);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -767,9 +772,35 @@ export default function TetrisGame() {
         updateBoard(newBoard);
         setLineFlashRows([]);
 
+        // New scoring: 100 points base, more for multi-lines
         const lineScores = [0, 100, 300, 500, 800];
-        const points = lineScores[fullLines.length] || 0;
-        setScore((prev) => prev + points);
+        const addedPoints = lineScores[fullLines.length] || 0;
+
+        // Add floating points animation
+        const id = nextFloatingId.current++;
+        setFloatingPoints((prev) => [
+          ...prev,
+          {
+            id,
+            value: addedPoints,
+            x: SCREEN_WIDTH / 2,
+            y: SCREEN_HEIGHT / 3,
+          },
+        ]);
+
+        setTimeout(() => {
+          setFloatingPoints((prev) => prev.filter((p) => p.id !== id));
+        }, 1000);
+
+        // Incremental score add for "attracting" effect
+        let count = 0;
+        const interval = setInterval(() => {
+          setScore((prev) => prev + 1);
+          count++;
+          if (count >= addedPoints) {
+            clearInterval(interval);
+          }
+        }, 20);
       }, 150);
     }
   };
@@ -1157,6 +1188,10 @@ export default function TetrisGame() {
           {/* place admob here in the fureture */}
           {/* <Text style={styles.adText}>admob</Text> */}
         </View>
+
+        {floatingPoints.map((p) => (
+          <FloatingScore key={p.id} value={p.value} />
+        ))}
       </Animated.View>
 
       <LeaderboardModal
@@ -1473,4 +1508,60 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
     letterSpacing: 2,
   },
+  floatingPoint: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "30%",
+    zIndex: 100,
+  },
+  floatingPointText: {
+    fontSize: 48,
+    fontWeight: "900",
+    color: "#facc15",
+    textShadowColor: "rgba(250, 204, 21, 0.6)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+    letterSpacing: 2,
+  },
 });
+
+const FloatingScore = ({ value }: { value: number }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const translateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -120],
+  });
+
+  const opacity = anim.interpolate({
+    inputRange: [0, 0.1, 0.8, 1],
+    outputRange: [0, 1, 1, 0],
+  });
+
+  const scale = anim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0.5, 1.2, 1],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.floatingPoint,
+        {
+          opacity,
+          transform: [{ translateY }, { scale }],
+        },
+      ]}
+    >
+      <Text style={styles.floatingPointText}>+{value}</Text>
+    </Animated.View>
+  );
+};
