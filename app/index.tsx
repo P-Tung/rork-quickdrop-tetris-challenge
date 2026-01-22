@@ -32,55 +32,55 @@ type GameState = "attract" | "playing" | "gameover";
 
 const TETROMINOS: Record<TetrominoType, { shape: number[][]; color: string }> =
   {
-    I: { shape: [[1, 1, 1, 1]], color: "#00E5E5" },
+    I: { shape: [[1, 1, 1, 1]], color: "#22d3ee" }, // Cyan
     O: {
       shape: [
         [1, 1],
         [1, 1],
       ],
-      color: "#FFE500",
+      color: "#facc15", // Yellow
     },
     T: {
       shape: [
         [0, 1, 0],
         [1, 1, 1],
       ],
-      color: "#D64DFF",
+      color: "#c084fc", // Purple
     },
     S: {
       shape: [
         [0, 1, 1],
         [1, 1, 0],
       ],
-      color: "#00E500",
+      color: "#4ade80", // Green
     },
     Z: {
       shape: [
         [1, 1, 0],
         [0, 1, 1],
       ],
-      color: "#FF3333",
+      color: "#fb7185", // Rose
     },
     J: {
       shape: [
         [1, 0, 0],
         [1, 1, 1],
       ],
-      color: "#3366FF",
+      color: "#60a5fa", // Blue
     },
     L: {
       shape: [
         [0, 0, 1],
         [1, 1, 1],
       ],
-      color: "#FF9933",
+      color: "#fb923c", // Orange
     },
   };
 
 const GridBackground = () => {
   const gridLines = [];
   const rows = 30;
-  const cols = 15;
+  const cols = 20;
 
   for (let i = 0; i <= rows; i++) {
     gridLines.push(
@@ -89,7 +89,10 @@ const GridBackground = () => {
         style={[
           styles.gridLine,
           styles.horizontalLine,
-          { top: `${(i / rows) * 100}%` },
+          {
+            top: `${(i / rows) * 100}%`,
+            opacity: i % 5 === 0 ? 0.2 : 0.05,
+          },
         ]}
       />,
     );
@@ -102,7 +105,10 @@ const GridBackground = () => {
         style={[
           styles.gridLine,
           styles.verticalLine,
-          { left: `${(i / cols) * 100}%` },
+          {
+            left: `${(i / cols) * 100}%`,
+            opacity: i % 5 === 0 ? 0.2 : 0.05,
+          },
         ]}
       />,
     );
@@ -112,18 +118,40 @@ const GridBackground = () => {
 };
 
 const StarParticles = () => {
-  const stars = Array.from({ length: 50 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    top: Math.random() * 100,
-    size: Math.random() * 2 + 1,
-    opacity: Math.random() * 0.6 + 0.2,
-  }));
+  const stars = useRef(
+    Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      size: Math.random() * 2 + 1,
+      anim: new Animated.Value(Math.random() * 0.5 + 0.2),
+    })),
+  ).current;
+
+  useEffect(() => {
+    stars.forEach((star) => {
+      const animate = () => {
+        Animated.sequence([
+          Animated.timing(star.anim, {
+            toValue: Math.random() * 0.8 + 0.2,
+            duration: 1000 + Math.random() * 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(star.anim, {
+            toValue: Math.random() * 0.3 + 0.1,
+            duration: 1000 + Math.random() * 2000,
+            useNativeDriver: true,
+          }),
+        ]).start(() => animate());
+      };
+      animate();
+    });
+  }, []);
 
   return (
     <View style={styles.starsContainer}>
       {stars.map((star) => (
-        <View
+        <Animated.View
           key={star.id}
           style={[
             styles.star,
@@ -132,7 +160,7 @@ const StarParticles = () => {
               top: `${star.top}%`,
               width: star.size,
               height: star.size,
-              opacity: star.opacity,
+              opacity: star.anim,
             },
           ]}
         />
@@ -871,8 +899,9 @@ export default function TetrisGame() {
                         borderRadius: 2,
                         shadowColor: color,
                         shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: 0.5,
-                        shadowRadius: 3,
+                        shadowOpacity: 0.8,
+                        shadowRadius: 5,
+                        elevation: 5,
                       }
                     : {},
                 ]}
@@ -901,15 +930,19 @@ export default function TetrisGame() {
             borderRadius: 3,
             shadowColor: color,
             shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.6,
-            shadowRadius: 4,
+            shadowOpacity: 0.9,
+            shadowRadius: 8,
+            elevation: 8,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.3)",
           },
         isGhost && {
-          backgroundColor: color ?? undefined,
-          opacity: 0.25,
+          borderWidth: 1,
+          borderColor: color ?? undefined,
+          opacity: 0.35,
           borderRadius: 3,
         },
-        isFlashing && { backgroundColor: "#ffffff" },
+        isFlashing && { backgroundColor: "#ffffff", shadowRadius: 20 },
       ]}
     />
   );
@@ -986,7 +1019,7 @@ export default function TetrisGame() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#0a1628", "#162850", "#1a3566", "#162850", "#0a1628"]}
+        colors={["#020617", "#0f172a", "#1e1b4b", "#0f172a", "#020617"]}
         locations={[0, 0.3, 0.5, 0.7, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -999,35 +1032,48 @@ export default function TetrisGame() {
         <StatusBar hidden />
 
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.bestLabel}>BEST:</Text>
-            <Text style={styles.bestScore}>{bestScore}</Text>
-          </View>
-          <Pressable
-            style={styles.trophyButton}
-            onPress={() => setShowLeaderboard(true)}
+          <LinearGradient
+            colors={["rgba(30, 41, 59, 0.5)", "rgba(15, 23, 42, 0.5)"]}
+            style={styles.headerPill}
           >
-            <Trophy color="#C9A227" size={26} />
-          </Pressable>
+            <View style={styles.headerLeft}>
+              <Text style={styles.bestLabel}>BEST</Text>
+              <Text style={styles.bestScore}>{bestScore}</Text>
+            </View>
+            <View style={styles.headerDivider} />
+            <Pressable
+              style={styles.trophyButton}
+              onPress={() => setShowLeaderboard(true)}
+            >
+              <Trophy color="#facc15" size={20} fill="#facc15" />
+            </Pressable>
+          </LinearGradient>
         </View>
 
-        <View style={styles.timerScoreRow}>
-          <Animated.Text
-            style={[
-              styles.scoreText,
-              { textShadowColor: glowColor, textShadowRadius: 15 },
-            ]}
-          >
-            SCORE: {score}
-          </Animated.Text>
-          <Text
-            style={[
-              styles.timer,
-              timeLeft < 10 && gameState === "playing" && styles.timerWarning,
-            ]}
-          >
-            {timeLeft.toFixed(1)}
-          </Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>SCORE</Text>
+            <Animated.Text
+              style={[
+                styles.scoreText,
+                { textShadowColor: glowColor, textShadowRadius: 15 },
+              ]}
+            >
+              {score}
+            </Animated.Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>TIME</Text>
+            <Text
+              style={[
+                styles.timer,
+                timeLeft < 10 && gameState === "playing" && styles.timerWarning,
+              ]}
+            >
+              {timeLeft.toFixed(1)}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.nextContainer}>
@@ -1035,18 +1081,19 @@ export default function TetrisGame() {
           <View style={styles.nextQueue}>
             {nextQueue.slice(0, 3).map((piece, index) => (
               <View key={`next-${index}`} style={styles.nextPiecePreview}>
-                {renderMiniPiece(piece, CELL_SIZE * 0.55)}
+                {renderMiniPiece(piece, CELL_SIZE * 0.5)}
               </View>
             ))}
           </View>
         </View>
 
         <View style={styles.gameContainer}>
-          <View
-            {...panResponder.panHandlers}
-            style={[styles.centerArea, { paddingVertical: 10 }]}
-          >
+          <View {...panResponder.panHandlers} style={styles.centerArea}>
             <View style={styles.boardWrapper}>
+              <LinearGradient
+                colors={["rgba(34, 211, 238, 0.3)", "rgba(192, 132, 252, 0.3)"]}
+                style={styles.boardGlow}
+              />
               <View style={styles.boardContainer}>{renderBoard()}</View>
 
               {(gameState === "attract" || gameState === "gameover") && (
@@ -1061,29 +1108,43 @@ export default function TetrisGame() {
                     },
                   ]}
                 >
+                  <LinearGradient
+                    colors={["rgba(15, 23, 42, 0.95)", "rgba(2, 6, 23, 0.95)"]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
                   {gameState === "attract" && (
                     <View style={styles.attractContent}>
                       <Text style={styles.overlayTitle}>
-                        TAP ANYWHERE{"\n"}TO PLAY
+                        QUICK DROP{"\n"}CHALLENGE
                       </Text>
+                      <View style={styles.startBadge}>
+                        <Text style={styles.startBadgeText}>TAP TO START</Text>
+                      </View>
                       <Text style={styles.overlaySubtitle}>
-                        60-SECOND CHALLENGE
+                        60 SECONDS • HIGH SPEED
                       </Text>
                     </View>
                   )}
                   {gameState === "gameover" && (
                     <View style={styles.gameOverContainer}>
                       <Text style={styles.gameOverTitle}>
-                        {gameoverReason === "time" ? "TIME UP!" : "GAME OVER"}
+                        {gameoverReason === "time" ? "TIME'S UP!" : "GAME OVER"}
                       </Text>
-                      <Text style={styles.finalScoreLabel}>YOUR SCORE</Text>
-                      <Text style={styles.finalScore}>
-                        {score.toLocaleString()}
-                      </Text>
-                      {isNewRecord && (
-                        <Text style={styles.newRecord}>NEW PERSONAL BEST!</Text>
-                      )}
-                      <Text style={styles.tapToRestart}>TAP TO PLAY AGAIN</Text>
+                      <View style={styles.finalScoreCard}>
+                        <Text style={styles.finalScoreLabel}>FINAL SCORE</Text>
+                        <Text style={styles.finalScore}>
+                          {score.toLocaleString()}
+                        </Text>
+                        {isNewRecord && (
+                          <Text style={styles.newRecord}>NEW RECORD!</Text>
+                        )}
+                      </View>
+                      <Pressable
+                        style={styles.restartButton}
+                        onPress={restartGame}
+                      >
+                        <Text style={styles.restartButtonText}>PLAY AGAIN</Text>
+                      </Pressable>
                     </View>
                   )}
                 </Animated.View>
@@ -1092,15 +1153,10 @@ export default function TetrisGame() {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.controlsPlaceholder,
-            {
-              paddingBottom: Math.max(insets.bottom, 24),
-              marginBottom: 16,
-            },
-          ]}
-        />
+        <View style={styles.footerAd}>
+          {/* place admob here in the fureture */}
+          {/* <Text style={styles.adText}>admob</Text> */}
+        </View>
       </Animated.View>
 
       <LeaderboardModal
@@ -1114,7 +1170,7 @@ export default function TetrisGame() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a1628",
+    backgroundColor: "#020617",
   },
   content: {
     flex: 1,
@@ -1125,7 +1181,7 @@ const styles = StyleSheet.create({
   },
   gridLine: {
     position: "absolute" as const,
-    backgroundColor: "rgba(100, 150, 255, 0.08)",
+    backgroundColor: "rgba(100, 150, 255, 0.2)",
   },
   horizontalLine: {
     left: 0,
@@ -1146,21 +1202,35 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 0, // Handled by insets
+    marginBottom: 10,
+  },
+  headerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.4)",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    gap: 12,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
+  },
+  headerDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
   },
   bestLabel: {
-    fontSize: 18,
-    fontWeight: "800" as const,
-    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "rgba(255, 255, 255, 0.5)",
     letterSpacing: 1,
   },
   bestScore: {
@@ -1169,35 +1239,45 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   trophyButton: {
-    padding: 8,
+    padding: 4,
   },
-  timerScoreRow: {
+  statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    paddingHorizontal: 24,
+    gap: 16,
+    marginBottom: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.3)",
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 8,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255, 255, 255, 0.4)",
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
   scoreText: {
-    fontSize: 22,
-    fontWeight: "800" as const,
+    fontSize: 24,
+    fontWeight: "900" as const,
     color: "#ffffff",
     letterSpacing: 1,
   },
   timer: {
-    fontSize: 28,
-    fontWeight: "800" as const,
+    fontSize: 24,
+    fontWeight: "900" as const,
     color: "#ffffff",
+    fontVariant: ["tabular-nums"],
   },
   timerWarning: {
-    color: "#ff4444",
-  },
-  gameContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    color: "#fb7185",
   },
   nextContainer: {
     flexDirection: "row",
@@ -1208,143 +1288,189 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   nextTitle: {
-    fontSize: 14,
-    fontWeight: "700" as const,
-    color: "rgba(255, 255, 255, 0.6)",
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "rgba(255, 255, 255, 0.3)",
+    letterSpacing: 1.5,
   },
   nextQueue: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     alignItems: "center",
-    justifyContent: "center",
   },
   nextPiecePreview: {
-    minHeight: CELL_SIZE * 1.6,
-    minWidth: CELL_SIZE * 1.6,
+    minHeight: CELL_SIZE * 1.4,
+    minWidth: CELL_SIZE * 1.4,
     justifyContent: "center",
     alignItems: "center",
-    padding: 6,
-    backgroundColor: "rgba(30, 60, 100, 0.4)",
-    borderRadius: 8,
+    padding: 8,
+    backgroundColor: "rgba(30, 41, 59, 0.4)",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(100, 150, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  gameContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
   centerArea: {
     flex: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   boardWrapper: {
     position: "relative",
+    padding: 12,
+  },
+  boardGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 20,
+    opacity: 0.15,
   },
   boardContainer: {
-    backgroundColor: "rgba(10, 20, 40, 0.8)",
-    padding: 2,
-    borderRadius: 4,
+    backgroundColor: "rgba(2, 6, 23, 0.8)",
+    padding: 4,
+    borderRadius: 12,
     alignSelf: "center",
-    borderWidth: 1,
-    borderColor: "rgba(100, 150, 255, 0.15)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   row: {
     flexDirection: "row",
   },
   cell: {
-    margin: 1,
-    backgroundColor: "rgba(30, 60, 100, 0.3)",
-    borderRadius: 2,
+    margin: 1.5,
+    backgroundColor: "rgba(30, 41, 59, 0.2)",
+    borderRadius: 3,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 22, 40, 0.92)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    borderRadius: 4,
+    padding: 24,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   attractContent: {
     alignItems: "center",
-    gap: 16,
+    zIndex: 1,
   },
   overlayTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "900" as const,
     color: "#ffffff",
     textAlign: "center",
     letterSpacing: 2,
-    textShadowColor: "rgba(74, 159, 255, 0.6)",
+    lineHeight: 40,
+    textShadowColor: "rgba(34, 211, 238, 0.5)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+    textShadowRadius: 30,
+  },
+  startBadge: {
+    backgroundColor: "#22d3ee",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: 24,
+    shadowColor: "#22d3ee",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+  },
+  startBadgeText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#020617",
+    letterSpacing: 1,
   },
   overlaySubtitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "600" as const,
-    color: "rgba(255, 255, 255, 0.7)",
+    color: "rgba(255, 255, 255, 0.5)",
     textAlign: "center",
     letterSpacing: 2,
+    marginTop: 20,
   },
   gameOverContainer: {
     alignItems: "center",
-    gap: 12,
+    zIndex: 1,
+    width: "100%",
   },
   gameOverTitle: {
-    fontSize: 38,
+    fontSize: 42,
     fontWeight: "900" as const,
-    color: "#FF5555",
-    textShadowColor: "rgba(255, 85, 85, 0.6)",
+    color: "#fb7185",
+    textShadowColor: "rgba(251, 113, 133, 0.5)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+    textShadowRadius: 30,
     letterSpacing: 2,
+    marginBottom: 24,
+  },
+  finalScoreCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: 24,
+    borderRadius: 24,
+    width: "100%",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    marginBottom: 32,
   },
   finalScoreLabel: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.6)",
-    marginTop: 12,
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "rgba(255, 255, 255, 0.4)",
     letterSpacing: 2,
+    marginBottom: 8,
   },
   finalScore: {
-    fontSize: 44,
+    fontSize: 56,
     fontWeight: "900" as const,
     color: "#ffffff",
   },
   newRecord: {
-    fontSize: 18,
-    fontWeight: "700" as const,
-    color: "#FFD700",
-    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#facc15",
+    marginTop: 12,
     letterSpacing: 1,
   },
-  tapToRestart: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.5)",
-    marginTop: 20,
+  restartButton: {
+    backgroundColor: "#ffffff",
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 32,
+    shadowColor: "#ffffff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  restartButtonText: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#020617",
     letterSpacing: 1,
   },
-  controls: {
-    flexDirection: "row",
+  footerAd: {
+    height: 70,
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.05)",
     justifyContent: "center",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 0, // Handled by insets
-    paddingTop: 12,
   },
-  controlButton: {
-    backgroundColor: "rgba(20, 40, 80, 0.7)",
-    borderRadius: 16,
-    padding: 14,
-    width: 62,
-    height: 62,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(74, 159, 255, 0.5)",
-  },
-  controlButtonPressed: {
-    backgroundColor: "rgba(74, 159, 255, 0.3)",
-    borderColor: "#4A9FFF",
-  },
-  controlsPlaceholder: {
-    height: 74, // Approximate height of the original controls (62 + padding/margins)
+  adText: {
+    color: "rgba(255, 255, 255, 0.2)",
+    fontSize: 12,
+    fontWeight: "600" as const,
+    letterSpacing: 2,
   },
 });
