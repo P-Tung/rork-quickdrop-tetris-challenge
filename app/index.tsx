@@ -14,6 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Trophy } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as NavigationBar from "expo-navigation-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth, firestore } from "@/lib/firebase";
 import { LeaderboardModal } from "@/components/LeaderboardModal";
@@ -253,6 +254,12 @@ export default function TetrisGame() {
         syncBestScoreWithRemote();
       }
     });
+
+    // Hide navigation bar and status bar for full screen
+    if (Platform.OS === "android") {
+      NavigationBar.setVisibilityAsync("hidden");
+      NavigationBar.setBehaviorAsync("overlay-swipe");
+    }
 
     return () => {
       unsubscribeAuth();
@@ -989,7 +996,7 @@ export default function TetrisGame() {
       <Animated.View
         style={[styles.content, { transform: [{ translateX: shakeAnim }] }]}
       >
-        <StatusBar style="light" translucent />
+        <StatusBar hidden />
 
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <View style={styles.headerLeft}>

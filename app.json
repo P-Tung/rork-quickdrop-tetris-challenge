@@ -26,6 +26,13 @@
       "package": "app.rork.quickdrop_tetris_challenge",
       "versionCode": 11,
       "googleServicesFile": "./google-services.json",
+      "statusBar": {
+        "translucent": true,
+        "hidden": true
+      },
+      "navigationBar": {
+        "visible": false
+      },
       "permissions": [
         "android.permission.VIBRATE",
         "android.permission.INTERNET"
