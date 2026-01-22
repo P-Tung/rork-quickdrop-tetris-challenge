@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Trophy } from "lucide-react-native";
+import { Trophy, Crown, Clock, Sparkles } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import * as NavigationBar from "expo-navigation-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,7 +26,7 @@ const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 14; // Reduced further to 14 rows for more breathing room
 const CELL_SIZE = (SCREEN_WIDTH - 64) / BOARD_WIDTH; // Reduced width to ensure height fits
-const INITIAL_DROP_SPEED = 260; // Lower is faster (ms)
+const INITIAL_DROP_SPEED = 560; // Lower is faster (ms)
 
 type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 type GameState = "attract" | "playing" | "gameover";
@@ -211,6 +211,24 @@ export default function TetrisGame() {
   const gameStateRef = useRef<GameState>(gameState);
   const currentPieceRef = useRef(currentPiece);
   const nextQueueRef = useRef(nextQueue);
+  const bestScorePulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bestScorePulse, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bestScorePulse, {
+          toValue: 0.4,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [bestScorePulse]);
 
   const updateBoard = (newBoard: (string | null)[][]) => {
     boardRef.current = newBoard;
@@ -1098,65 +1116,62 @@ export default function TetrisGame() {
         <StatusBar hidden />
 
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <LinearGradient
-            colors={["rgba(30, 41, 59, 0.5)", "rgba(15, 23, 42, 0.5)"]}
-            style={styles.headerPill}
-          >
-            <View style={styles.headerLeft}>
-              <Text style={styles.bestLabel}>BEST</Text>
-              <Text style={styles.bestScore}>{bestScore}</Text>
+          <View style={styles.headerPill}>
+            <View style={styles.headerTimerContainer}>
+              <Clock
+                color={
+                  timeLeft <= 3 && gameState === "playing"
+                    ? "#ef4444"
+                    : "rgba(255, 255, 255, 0.4)"
+                }
+                size={22}
+              />
+              <Animated.Text
+                style={[
+                  styles.headerTimer,
+                  { transform: [{ scale: timerScale }] },
+                  timeLeft <= 3 &&
+                    gameState === "playing" &&
+                    styles.timerEmergency,
+                ]}
+              >
+                {timeLeft >= 1
+                  ? Math.ceil(timeLeft).toString()
+                  : timeLeft.toFixed(1)}
+              </Animated.Text>
             </View>
-            <View style={styles.headerDivider} />
+
+            <View style={styles.headerLeft}>
+              <Crown color="#facc15" size={24} fill="#facc15" />
+              <Text style={[styles.bestScore, { color: "#facc15" }]}>
+                {bestScore}
+              </Text>
+              <Animated.View style={{ opacity: bestScorePulse, marginLeft: 2 }}>
+                <Sparkles color="#facc15" size={14} fill="#facc15" />
+              </Animated.View>
+            </View>
+
             <Pressable
               style={styles.trophyButton}
               onPress={() => setShowLeaderboard(true)}
             >
-              <Trophy color="#facc15" size={20} fill="#facc15" />
+              <Trophy color="#facc15" size={26} fill="#facc15" />
             </Pressable>
-          </LinearGradient>
+          </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>SCORE</Text>
-            <Animated.Text
-              style={[
-                styles.scoreText,
-                { textShadowColor: glowColor, textShadowRadius: 15 },
-              ]}
-            >
-              {score}
-            </Animated.Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text
-              style={[
-                styles.statLabel,
-                timeLeft <= 3 &&
-                  gameState === "playing" && { color: "#ef4444" },
-              ]}
-            >
-              TIME
-            </Text>
-            <Animated.Text
-              style={[
-                styles.timer,
-                { transform: [{ scale: timerScale }] },
-                timeLeft <= 3 &&
-                  gameState === "playing" &&
-                  styles.timerEmergency,
-              ]}
-            >
-              {timeLeft >= 1
-                ? Math.ceil(timeLeft).toString()
-                : timeLeft.toFixed(1)}
-            </Animated.Text>
-          </View>
+        <View style={styles.scoreContainer}>
+          <Animated.Text
+            style={[
+              styles.mainScoreText,
+              { textShadowColor: glowColor, textShadowRadius: 20 },
+            ]}
+          >
+            {score}
+          </Animated.Text>
         </View>
 
         <View style={styles.nextContainer}>
-          <Text style={styles.nextTitle}>NEXT</Text>
           <View style={styles.nextQueue}>
             {nextQueue.slice(0, 3).map((piece, index) => (
               <View key={`next-${index}`} style={styles.nextPiecePreview}>
@@ -1292,13 +1307,10 @@ const styles = StyleSheet.create({
   headerPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(30, 41, 59, 0.4)",
+    justifyContent: "space-between",
     paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    gap: 12,
+    paddingHorizontal: 16,
+    width: "100%",
   },
   headerLeft: {
     flexDirection: "row",
@@ -1310,55 +1322,48 @@ const styles = StyleSheet.create({
     height: 20,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
   },
-  bestLabel: {
-    fontSize: 12,
-    fontWeight: "600" as const,
-    color: "rgba(255, 255, 255, 0.5)",
-    letterSpacing: 1,
-  },
+
   bestScore: {
-    fontSize: 18,
-    fontWeight: "800" as const,
-    color: "#ffffff",
-  },
-  trophyButton: {
-    padding: 4,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    gap: 16,
-    marginBottom: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.3)",
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-    alignItems: "center",
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: "700" as const,
-    color: "rgba(255, 255, 255, 0.4)",
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  scoreText: {
     fontSize: 24,
     fontWeight: "900" as const,
-    color: "#ffffff",
-    letterSpacing: 1,
+    color: "#facc15",
+    textShadowColor: "rgba(250, 204, 21, 0.3)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
-  timer: {
+  trophyButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#facc15",
+    backgroundColor: "rgba(250, 204, 21, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTimerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerTimer: {
     fontSize: 24,
     fontWeight: "900" as const,
     color: "#ffffff",
     fontVariant: ["tabular-nums"],
   },
+  scoreContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+  },
+  mainScoreText: {
+    fontSize: 48,
+    fontWeight: "900" as const,
+    color: "#ffffff",
+    letterSpacing: 2,
+  },
+
   timerEmergency: {
     color: "#ef4444",
     textShadowColor: "rgba(239, 68, 68, 0.5)",
@@ -1372,12 +1377,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
-  nextTitle: {
-    fontSize: 12,
-    fontWeight: "800" as const,
-    color: "rgba(255, 255, 255, 0.3)",
-    letterSpacing: 1.5,
-  },
+
   nextQueue: {
     flexDirection: "row",
     gap: 10,

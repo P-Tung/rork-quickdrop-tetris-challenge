@@ -30,6 +30,7 @@
 - **Body**: SemiBold / 600 weight, color: `rgba(255, 255, 255, 0.8)`
 - **Secondary**: Color: `rgba(255, 255, 255, 0.5)`
 - **Numbers**: Tabular-nums for timers and scores
+- **Icon Labels**: Use icons instead of text labels for common metrics (Crown for Best, Clock for Time, Star for Score) to minimize UI clutter.
 
 ## Component Patterns
 
