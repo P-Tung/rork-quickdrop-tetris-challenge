@@ -12,14 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  RotateCw,
-  Trophy,
-  ChevronsDown,
-} from "lucide-react-native";
+import { Trophy } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth, firestore } from "@/lib/firebase";
@@ -31,7 +24,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 14; // Reduced further to 14 rows for more breathing room
 const CELL_SIZE = (SCREEN_WIDTH - 64) / BOARD_WIDTH; // Reduced width to ensure height fits
-const INITIAL_DROP_SPEED = 200; // Lower is faster (ms)
+const INITIAL_DROP_SPEED = 260; // Lower is faster (ms)
 
 type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 type GameState = "attract" | "playing" | "gameover";
@@ -180,10 +173,22 @@ export default function TetrisGame() {
   const bestScoreRef = useRef(0);
   const boardRef = useRef(board);
   const gameStateRef = useRef<GameState>(gameState);
+  const currentPieceRef = useRef(currentPiece);
+  const nextQueueRef = useRef(nextQueue);
 
   const updateBoard = (newBoard: (string | null)[][]) => {
     boardRef.current = newBoard;
     setBoard(newBoard);
+  };
+
+  const updateCurrentPiece = (piece: typeof currentPiece) => {
+    currentPieceRef.current = piece;
+    setCurrentPiece(piece);
+  };
+
+  const updateNextQueue = (queue: TetrominoType[]) => {
+    nextQueueRef.current = queue;
+    setNextQueue(queue);
   };
   const [gameoverReason, setGameoverReason] = useState<
     "time" | "collision" | null
@@ -203,6 +208,14 @@ export default function TetrisGame() {
   }, [gameState]);
 
   useEffect(() => {
+    currentPieceRef.current = currentPiece;
+  }, [currentPiece]);
+
+  useEffect(() => {
+    nextQueueRef.current = nextQueue;
+  }, [nextQueue]);
+
+  useEffect(() => {
     loadBestScore();
     const newBag = generateBag();
     const initialQueue: TetrominoType[] = [];
@@ -210,7 +223,7 @@ export default function TetrisGame() {
       initialQueue.push(newBag.shift()!);
     }
     bagRef.current = newBag;
-    setNextQueue(initialQueue);
+    updateNextQueue(initialQueue);
     spawnPiece(
       initialQueue[0],
       Array(BOARD_HEIGHT)
@@ -371,6 +384,7 @@ export default function TetrisGame() {
     }
 
     setCurrentPiece(newPiece);
+    currentPieceRef.current = newPiece;
   };
 
   const startAttractMode = () => {
@@ -406,6 +420,7 @@ export default function TetrisGame() {
 
   const startGame = () => {
     setGameState("playing");
+    gameStateRef.current = "playing";
     setTimeLeft(60);
     setScore(0);
     setIsNewRecord(false);
@@ -417,27 +432,31 @@ export default function TetrisGame() {
     }).start();
 
     // Clear board for fresh start
-    setBoard(
-      Array(BOARD_HEIGHT)
-        .fill(null)
-        .map(() => Array(BOARD_WIDTH).fill(null)),
-    );
+    const emptyBoard = Array(BOARD_HEIGHT)
+      .fill(null)
+      .map(() => Array(BOARD_WIDTH).fill(null));
+    updateBoard(emptyBoard);
     setScore(0);
     setGameoverReason(null);
 
+    // Spawn a fresh piece for the game - USE REF to avoid stale closure
+    if (nextQueueRef.current.length > 0) {
+      spawnPiece(nextQueueRef.current[0], emptyBoard);
+    }
+
     if (dropTimerRef.current) clearInterval(dropTimerRef.current);
     dropTimerRef.current = setInterval(() => {
-      setCurrentPiece((prev) => {
-        if (!prev) return prev;
-        const shape = getRotatedShape(prev.type, prev.rotation);
-        if (!checkCollision(prev.x, prev.y + 1, shape, boardRef.current)) {
-          return { ...prev, y: prev.y + 1 };
-        } else {
-          // Lock piece immediately and prevent further moves in this tick
-          setTimeout(() => lockPieceInternal(prev, boardRef.current), 0);
-          return null; // Remove current piece during locking to prevent race conditions
-        }
-      });
+      // Use ref as the base for logic to avoid any stale state closures
+      const p = currentPieceRef.current;
+      if (!p || gameStateRef.current !== "playing") return;
+
+      const shape = getRotatedShape(p.type, p.rotation);
+      if (!checkCollision(p.x, p.y + 1, shape, boardRef.current)) {
+        updateCurrentPiece({ ...p, y: p.y + 1 });
+      } else {
+        // Lock piece immediately and prevent further moves in this tick
+        lockPieceInternal(p, boardRef.current);
+      }
     }, INITIAL_DROP_SPEED);
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -536,10 +555,11 @@ export default function TetrisGame() {
   };
 
   const moveLeft = () => {
-    if (!currentPiece || gameState !== "playing") return;
-    const shape = getRotatedShape(currentPiece.type, currentPiece.rotation);
-    if (!checkCollision(currentPiece.x - 1, currentPiece.y, shape, board)) {
-      setCurrentPiece({ ...currentPiece, x: currentPiece.x - 1 });
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    const shape = getRotatedShape(p.type, p.rotation);
+    if (!checkCollision(p.x - 1, p.y, shape, boardRef.current)) {
+      updateCurrentPiece({ ...p, x: p.x - 1 });
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
@@ -547,10 +567,11 @@ export default function TetrisGame() {
   };
 
   const moveRight = () => {
-    if (!currentPiece || gameState !== "playing") return;
-    const shape = getRotatedShape(currentPiece.type, currentPiece.rotation);
-    if (!checkCollision(currentPiece.x + 1, currentPiece.y, shape, board)) {
-      setCurrentPiece({ ...currentPiece, x: currentPiece.x + 1 });
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    const shape = getRotatedShape(p.type, p.rotation);
+    if (!checkCollision(p.x + 1, p.y, shape, boardRef.current)) {
+      updateCurrentPiece({ ...p, x: p.x + 1 });
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
@@ -558,21 +579,36 @@ export default function TetrisGame() {
   };
 
   const movePieceDown = () => {
-    if (!currentPiece || gameState !== "playing") return;
-    const shape = getRotatedShape(currentPiece.type, currentPiece.rotation);
-    if (!checkCollision(currentPiece.x, currentPiece.y + 1, shape, board)) {
-      setCurrentPiece({ ...currentPiece, y: currentPiece.y + 1 });
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    const shape = getRotatedShape(p.type, p.rotation);
+    if (!checkCollision(p.x, p.y + 1, shape, boardRef.current)) {
+      updateCurrentPiece({ ...p, y: p.y + 1 });
     } else {
-      lockPieceInternal(currentPiece, board);
+      lockPieceInternal(p, boardRef.current);
     }
   };
 
   const rotate = () => {
-    if (!currentPiece || gameState !== "playing") return;
-    const newRotation = (currentPiece.rotation + 1) % 4;
-    const shape = getRotatedShape(currentPiece.type, newRotation);
-    if (!checkCollision(currentPiece.x, currentPiece.y, shape, board)) {
-      setCurrentPiece({ ...currentPiece, rotation: newRotation });
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    const newRotation = (p.rotation + 1) % 4;
+    const shape = getRotatedShape(p.type, newRotation);
+    if (!checkCollision(p.x, p.y, shape, boardRef.current)) {
+      updateCurrentPiece({ ...p, rotation: newRotation });
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    }
+  };
+
+  const rotateCCW = () => {
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    const newRotation = (p.rotation + 3) % 4;
+    const shape = getRotatedShape(p.type, newRotation);
+    if (!checkCollision(p.x, p.y, shape, boardRef.current)) {
+      updateCurrentPiece({ ...p, rotation: newRotation });
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
@@ -580,18 +616,20 @@ export default function TetrisGame() {
   };
 
   const hardDrop = () => {
-    if (!currentPiece || gameState !== "playing") return;
-    let dropY = currentPiece.y;
-    const shape = getRotatedShape(currentPiece.type, currentPiece.rotation);
-    while (!checkCollision(currentPiece.x, dropY + 1, shape, board)) {
+    if (!currentPieceRef.current || gameStateRef.current !== "playing") return;
+    const p = currentPieceRef.current;
+    let dropY = p.y;
+    const shape = getRotatedShape(p.type, p.rotation);
+    while (!checkCollision(p.x, dropY + 1, shape, boardRef.current)) {
       dropY++;
     }
-    setCurrentPiece({ ...currentPiece, y: dropY });
+    const next = { ...p, y: dropY };
+    updateCurrentPiece(next);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     setTimeout(() => {
-      lockPieceInternal({ ...currentPiece, y: dropY }, board);
+      lockPieceInternal(next, boardRef.current);
     }, 50);
   };
 
@@ -626,6 +664,10 @@ export default function TetrisGame() {
     }
 
     updateBoard(newBoard);
+
+    // Clear current piece before processing lines and spawning next
+    updateCurrentPiece(null);
+
     checkLines(newBoard);
     spawnNextPiece(newBoard);
   };
@@ -698,48 +740,105 @@ export default function TetrisGame() {
   };
 
   const spawnNextPiece = (currentBoard: (string | null)[][]) => {
-    setNextQueue((prevQueue) => {
-      if (prevQueue.length === 0) {
-        console.error("Next queue is empty!");
-        return prevQueue;
-      }
-      const [next, ...rest] = prevQueue;
-      if (!next) {
-        console.error("Next piece is undefined!");
-        return prevQueue;
-      }
+    if (nextQueueRef.current.length === 0) return;
 
-      const newPiece = getNextPieceFromBag();
-      setTimeout(() => spawnPiece(next, currentBoard), 0);
+    const [next, ...rest] = nextQueueRef.current;
+    if (!next) return;
 
-      return [...rest, newPiece];
-    });
+    const newPiece = getNextPieceFromBag();
+    updateNextQueue([...rest, newPiece]);
+
+    // Delay spawning slightly to let board rendering settle
+    setTimeout(() => spawnPiece(next, currentBoard), 0);
   };
 
   const handleTapToStart = () => {
-    if (gameState === "attract") {
+    if (gameStateRef.current === "attract") {
       startGame();
-    } else if (gameState === "gameover") {
+    } else if (gameStateRef.current === "gameover") {
       restartGame();
     }
   };
 
+  const longPressTimerRef = useRef<any>(null);
+  const isRotatingCCW = useRef(false);
+  const lastMoveX = useRef(0);
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => gameState === "playing",
-      onMoveShouldSetPanResponder: () => gameState === "playing",
-      onPanResponderRelease: (_, gestureState) => {
-        if (gameState !== "playing") return;
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt, gestureState) => {
+        if (gameStateRef.current !== "playing") return;
+
+        isRotatingCCW.current = false;
+        lastMoveX.current = gestureState.x0;
+
+        if (gestureState.numberActiveTouches >= 2) {
+          isRotatingCCW.current = true;
+          rotateCCW();
+        } else {
+          longPressTimerRef.current = setTimeout(() => {
+            isRotatingCCW.current = true;
+            rotateCCW();
+            longPressTimerRef.current = null;
+          }, 350);
+        }
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gameStateRef.current !== "playing") return;
 
         const { dx, dy } = gestureState;
 
-        if (Math.abs(dy) > Math.abs(dx) && dy < -50) {
-          hardDrop();
-        } else if (Math.abs(dx) > Math.abs(dy)) {
-          if (dx > 30) {
+        // Reset long press if moved significantly
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+
+        // Incremental horizontal movement
+        const moveThreshold = CELL_SIZE * 0.8;
+        const currentX = gestureState.moveX;
+        const diffX = currentX - lastMoveX.current;
+
+        if (Math.abs(diffX) > moveThreshold) {
+          if (diffX > 0) {
             moveRight();
-          } else if (dx < -30) {
+          } else {
             moveLeft();
+          }
+          lastMoveX.current = currentX;
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+
+        if (gameStateRef.current !== "playing") {
+          const { dx, dy } = gestureState;
+          if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+            handleTapToStart();
+          }
+          return;
+        }
+
+        if (isRotatingCCW.current) return;
+
+        const { dx, dy } = gestureState;
+
+        // Only handle vertical swipes and tap on release
+        // Horizontal is handled in Move for better feel
+        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
+          rotate();
+        } else if (Math.abs(dy) > Math.abs(dx)) {
+          if (dy < -40) {
+            hardDrop();
+          } else if (dy > 40) {
+            movePieceDown();
           }
         }
       },
@@ -940,7 +1039,7 @@ export default function TetrisGame() {
             {...panResponder.panHandlers}
             style={[styles.centerArea, { paddingVertical: 10 }]}
           >
-            <Pressable onPress={handleTapToStart} style={styles.boardWrapper}>
+            <View style={styles.boardWrapper}>
               <View style={styles.boardContainer}>{renderBoard()}</View>
 
               {(gameState === "attract" || gameState === "gameover") && (
@@ -982,65 +1081,19 @@ export default function TetrisGame() {
                   )}
                 </Animated.View>
               )}
-            </Pressable>
+            </View>
           </View>
         </View>
 
         <View
           style={[
-            styles.controls,
+            styles.controlsPlaceholder,
             {
               paddingBottom: Math.max(insets.bottom, 24),
               marginBottom: 16,
             },
           ]}
-        >
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={moveLeft}
-          >
-            <ChevronLeft color="#4A9FFF" size={32} strokeWidth={2.5} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={hardDrop}
-          >
-            <ChevronsDown color="#4A9FFF" size={32} strokeWidth={2.5} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={movePieceDown}
-          >
-            <ChevronDown color="#4A9FFF" size={32} strokeWidth={2.5} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={rotate}
-          >
-            <RotateCw color="#4A9FFF" size={28} strokeWidth={2.5} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={moveRight}
-          >
-            <ChevronRight color="#4A9FFF" size={32} strokeWidth={2.5} />
-          </Pressable>
-        </View>
+        />
       </Animated.View>
 
       <LeaderboardModal
@@ -1283,5 +1336,8 @@ const styles = StyleSheet.create({
   controlButtonPressed: {
     backgroundColor: "rgba(74, 159, 255, 0.3)",
     borderColor: "#4A9FFF",
+  },
+  controlsPlaceholder: {
+    height: 74, // Approximate height of the original controls (62 + padding/margins)
   },
 });
