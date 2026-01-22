@@ -201,6 +201,8 @@ export default function TetrisGame() {
   const overlayScale = useRef(new Animated.Value(1)).current;
   const scoreGlow = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const timerScale = useRef(new Animated.Value(1)).current;
+  const lastSecondRef = useRef(60);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dropTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
@@ -794,9 +796,10 @@ export default function TetrisGame() {
 
         // Incremental score add for "attracting" effect
         let count = 0;
+        const tickValue = 10;
         const interval = setInterval(() => {
-          setScore((prev) => prev + 1);
-          count++;
+          setScore((prev) => prev + tickValue);
+          count += tickValue;
           if (count >= addedPoints) {
             clearInterval(interval);
           }
@@ -804,6 +807,38 @@ export default function TetrisGame() {
       }, 150);
     }
   };
+
+  const pulseTimer = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(timerScale, {
+        toValue: 1.4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(timerScale, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  }, [timerScale]);
+
+  useEffect(() => {
+    if (gameState === "playing") {
+      const currentSec = Math.ceil(timeLeft);
+      if (currentSec !== lastSecondRef.current) {
+        if (currentSec <= 5 && currentSec > 0) {
+          pulseTimer();
+        }
+        lastSecondRef.current = currentSec;
+      }
+    } else {
+      lastSecondRef.current = 60;
+    }
+  }, [timeLeft, gameState, pulseTimer]);
 
   const spawnNextPiece = (currentBoard: (string | null)[][]) => {
     if (nextQueueRef.current.length === 0) return;
@@ -1095,15 +1130,28 @@ export default function TetrisGame() {
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>TIME</Text>
             <Text
               style={[
-                styles.timer,
-                timeLeft < 10 && gameState === "playing" && styles.timerWarning,
+                styles.statLabel,
+                timeLeft <= 3 &&
+                  gameState === "playing" && { color: "#ef4444" },
               ]}
             >
-              {timeLeft.toFixed(1)}
+              TIME
             </Text>
+            <Animated.Text
+              style={[
+                styles.timer,
+                { transform: [{ scale: timerScale }] },
+                timeLeft <= 3 &&
+                  gameState === "playing" &&
+                  styles.timerEmergency,
+              ]}
+            >
+              {timeLeft >= 1
+                ? Math.ceil(timeLeft).toString()
+                : timeLeft.toFixed(1)}
+            </Animated.Text>
           </View>
         </View>
 
@@ -1311,8 +1359,10 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontVariant: ["tabular-nums"],
   },
-  timerWarning: {
-    color: "#fb7185",
+  timerEmergency: {
+    color: "#ef4444",
+    textShadowColor: "rgba(239, 68, 68, 0.5)",
+    textShadowRadius: 15,
   },
   nextContainer: {
     flexDirection: "row",
