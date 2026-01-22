@@ -172,7 +172,10 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const offline = !state.isConnected || !state.isInternetReachable;
+      // Only consider offline if isConnected is false.
+      // isInternetReachable can be null while determining, which shouldn't block the UI.
+      const offline =
+        state.isConnected === false || state.isInternetReachable === false;
       setIsOffline(offline);
       if (!offline && isVisible) {
         fetchScores(auth().currentUser?.uid);
@@ -181,7 +184,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
     // Check initial state
     NetInfo.fetch().then((state) => {
-      setIsOffline(!state.isConnected || !state.isInternetReachable);
+      setIsOffline(
+        state.isConnected === false || state.isInternetReachable === false,
+      );
     });
 
     return () => unsubscribe();

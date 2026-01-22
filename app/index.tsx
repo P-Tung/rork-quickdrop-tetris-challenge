@@ -219,27 +219,30 @@ export default function TetrisGame() {
     );
     startAttractMode();
 
-    // Initialize Firebase Anonymous Auth
-    const initAuth = async () => {
-      try {
-        const current = auth().currentUser;
-        if (!current) {
+    // Initialize Firebase Anonymous Auth and sync on auth state change
+    const unsubscribeAuth = auth().onAuthStateChanged(async (user) => {
+      if (user) {
+        console.log("👤 Authenticated as:", user.uid);
+        // Once authenticated, sync local best score with remote
+        syncBestScoreWithRemote();
+      } else {
+        try {
           await auth().signInAnonymously();
+        } catch (error) {
+          console.error("Firebase auth error:", error);
         }
-      } catch (error) {
-        console.error("Firebase auth error:", error);
       }
-    };
-    initAuth();
+    });
 
     // Sync score when coming online
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      if (state.isConnected && state.isInternetReachable) {
+      if (state.isConnected) {
         syncBestScoreWithRemote();
       }
     });
 
     return () => {
+      unsubscribeAuth();
       unsubscribeNetInfo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,24 +260,25 @@ export default function TetrisGame() {
       const ref = firestore().collection("scores").doc(user.uid);
       await firestore().runTransaction(async (tx: any) => {
         const snap = await tx.get(ref);
-        const prev = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
+        const remoteScore = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
 
-        if (localScore > prev) {
+        if (localScore > remoteScore) {
           const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
           tx.set(
             ref,
             {
               bestScore: localScore,
-              displayName: user.displayName || defaultName,
+              displayName:
+                user.displayName || snap.data()?.displayName || defaultName,
               updatedAt: firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },
           );
-          console.log("Synced offline score to remote:", localScore);
+          console.log("✅ Synced offline score to remote:", localScore);
         }
       });
     } catch (error) {
-      console.log("Failed to sync best score:", error);
+      console.log("❌ Failed to sync best score:", error);
     }
   };
 
@@ -289,40 +293,49 @@ export default function TetrisGame() {
 
   const saveBestScore = async (newScore: number) => {
     try {
-      await AsyncStorage.setItem("tetris_best_score", newScore.toString());
-      setBestScore(newScore);
+      // Always update local storage and state if it's a new personal record
+      if (newScore > bestScoreRef.current) {
+        await AsyncStorage.setItem("tetris_best_score", newScore.toString());
+        setBestScore(newScore);
+      }
 
       // Check connectivity and submit to Firestore
       const state = await NetInfo.fetch();
-      if (state.isConnected && state.isInternetReachable) {
+      // Only skip if explicitly disconnected. If isInternetReachable is null, we still try.
+      const isOnline = state.isConnected && state.isInternetReachable !== false;
+
+      if (isOnline) {
         const user = auth().currentUser;
         if (user) {
           const ref = firestore().collection("scores").doc(user.uid);
           await firestore().runTransaction(async (tx: any) => {
             const snap = await tx.get(ref);
-            const prev = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
+            const remoteScore = snap.exists ? (snap.data()?.bestScore ?? 0) : 0;
 
-            // Format: User [4 digits of userId] - converted to uppercase for style
             const defaultName = `User ${user.uid.slice(0, 4).toUpperCase()}`;
 
-            if (newScore > prev) {
+            // We update remote if newScore is better than remote,
+            // OR if newScore is equal to local best but remote is still behind
+            if (newScore > remoteScore) {
               tx.set(
                 ref,
                 {
                   bestScore: newScore,
-                  displayName: user.displayName || defaultName,
+                  displayName:
+                    user.displayName || snap.data()?.displayName || defaultName,
                   updatedAt: firestore.FieldValue.serverTimestamp(),
                 },
                 { merge: true },
               );
+              console.log("✅ Score saved to Firestore:", newScore);
             }
           });
         }
       } else {
-        console.log("Offline: Score saved locally only.");
+        console.log("📱 Offline: Score saved locally only.");
       }
     } catch (error) {
-      console.log("Failed to save best score:", error);
+      console.log("❌ Failed to save best score:", error);
     }
   };
 
@@ -447,8 +460,14 @@ export default function TetrisGame() {
     setGameoverReason(reason);
 
     const finalScore = scoreRef.current;
+
+    // Update personal record state
     if (finalScore > bestScoreRef.current) {
       setIsNewRecord(true);
+    }
+
+    // Always attempt to save/sync if score > 0
+    if (finalScore > 0) {
       saveBestScore(finalScore);
     }
   };
