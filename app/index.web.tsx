@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Dimensions,
   TouchableOpacity,
   ActivityIndicator,
   Animated,
@@ -31,28 +30,181 @@ interface LeaderboardEntry {
   updatedAt: any;
 }
 
+const TETROMINOS = [
+  { shape: [[1, 1, 1, 1]], color: "#22d3ee" }, // I
+  {
+    shape: [
+      [1, 1],
+      [1, 1],
+    ],
+    color: "#facc15",
+  }, // O
+  {
+    shape: [
+      [0, 1, 0],
+      [1, 1, 1],
+    ],
+    color: "#a855f7",
+  }, // T
+  {
+    shape: [
+      [1, 1, 0],
+      [0, 1, 1],
+    ],
+    color: "#4ade80",
+  }, // S
+  {
+    shape: [
+      [0, 1, 1],
+      [1, 1, 0],
+    ],
+    color: "#f87171",
+  }, // Z
+  {
+    shape: [
+      [1, 0, 0],
+      [1, 1, 1],
+    ],
+    color: "#3b82f6",
+  }, // J
+  {
+    shape: [
+      [0, 0, 1],
+      [1, 1, 1],
+    ],
+    color: "#fb923c",
+  }, // L
+];
+
+const FallingBlock = ({ delay }: { delay: number }) => {
+  const animatedValue = useRef(new Animated.Value(-100)).current;
+  const rotationValue = useRef(new Animated.Value(0)).current;
+  const isFirstRun = useRef(true);
+
+  const [config, setConfig] = useState(() => ({
+    left: Math.random() * 100,
+    size: Math.random() * 20 + 15,
+    tetromino: TETROMINOS[Math.floor(Math.random() * TETROMINOS.length)],
+    opacity: Math.random() * 0.15 + 0.1,
+    duration: Math.random() * 15000 + 15000,
+    rotationRange: Math.random() * 720 - 360,
+  }));
+
+  const startAnimation = useCallback(() => {
+    const duration = Math.random() * 15000 + 15000;
+    const newConfig = {
+      left: Math.random() * 100,
+      size: Math.random() * 20 + 15,
+      tetromino: TETROMINOS[Math.floor(Math.random() * TETROMINOS.length)],
+      opacity: Math.random() * 0.15 + 0.1,
+      duration,
+      rotationRange: Math.random() * 720 - 360,
+    };
+    setConfig(newConfig);
+
+    animatedValue.setValue(-100);
+    rotationValue.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(animatedValue, {
+        toValue: 1500, // Sufficient for long backgrounds
+        duration: duration,
+        useNativeDriver: true,
+        delay: isFirstRun.current ? delay : 0,
+      }),
+      Animated.timing(rotationValue, {
+        toValue: 1,
+        duration: duration,
+        useNativeDriver: true,
+        delay: isFirstRun.current ? delay : 0,
+      }),
+    ]).start(() => {
+      isFirstRun.current = false;
+      startAnimation();
+    });
+  }, [animatedValue, rotationValue, delay]);
+
+  useEffect(() => {
+    startAnimation();
+  }, [startAnimation]);
+
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        left: `${config.left}%`,
+        transform: [
+          { translateY: animatedValue },
+          {
+            rotate: rotationValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: ["0deg", `${config.rotationRange}deg`],
+            }),
+          },
+        ],
+        opacity: config.opacity,
+        zIndex: -1,
+      }}
+    >
+      <View style={{ gap: 2 }}>
+        {config.tetromino.shape.map((row, rowIndex) => (
+          <View key={rowIndex} style={{ flexDirection: "row", gap: 2 }}>
+            {row.map((cell, cellIndex) => (
+              <View
+                key={cellIndex}
+                style={{
+                  width: config.size,
+                  height: config.size,
+                  backgroundColor: cell
+                    ? config.tetromino.color
+                    : "transparent",
+                  borderRadius: 3,
+                  boxShadow: cell
+                    ? `0 0 15px ${config.tetromino.color}88`
+                    : "none",
+                }}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    </Animated.View>
+  );
+};
+
+const FallingBlocksBackground = () => (
+  <View style={styles.fallingBlocksContainer}>
+    {Array.from({ length: 25 }).map((_, i) => (
+      <FallingBlock key={i} delay={i * 800} />
+    ))}
+  </View>
+);
+
 const GridBackground = () => (
-  <View style={styles.gridContainer}>
-    {Array.from({ length: 20 }).map((_, i) => (
-      <View
-        key={`h-${i}`}
-        style={[
-          styles.gridLine,
-          styles.horizontalLine,
-          { top: `${(i / 20) * 100}%` },
-        ]}
-      />
-    ))}
-    {Array.from({ length: 15 }).map((_, i) => (
-      <View
-        key={`v-${i}`}
-        style={[
-          styles.gridLine,
-          styles.verticalLine,
-          { left: `${(i / 15) * 100}%` },
-        ]}
-      />
-    ))}
+  <View style={StyleSheet.absoluteFill}>
+    <FallingBlocksBackground />
+    <View style={styles.gridContainer}>
+      {Array.from({ length: 20 }).map((_, i) => (
+        <View
+          key={`h-${i}`}
+          style={[
+            styles.gridLine,
+            styles.horizontalLine,
+            { top: `${(i / 20) * 100}%` },
+          ]}
+        />
+      ))}
+      {Array.from({ length: 15 }).map((_, i) => (
+        <View
+          key={`v-${i}`}
+          style={[
+            styles.gridLine,
+            styles.verticalLine,
+            { left: `${(i / 15) * 100}%` },
+          ]}
+        />
+      ))}
+    </View>
   </View>
 );
 
@@ -348,6 +500,11 @@ const styles = StyleSheet.create({
   },
   horizontalLine: { left: 0, right: 0, height: 1 },
   verticalLine: { top: 0, bottom: 0, width: 1 },
+  fallingBlocksContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+    ...(Platform.OS === "web" ? { position: "fixed" as any } : {}),
+  },
 
   headerSection: {
     marginTop: 80,
