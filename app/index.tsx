@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Trophy, Crown, Clock, Sparkles } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import * as NavigationBar from "expo-navigation-bar";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth, firestore } from "@/lib/firebase";
 import { LeaderboardModal } from "@/components/LeaderboardModal";
@@ -318,13 +319,33 @@ export default function TetrisGame() {
 
     // Hide navigation bar and status bar for full screen
     if (Platform.OS === "android") {
-      NavigationBar.setVisibilityAsync("hidden");
-      NavigationBar.setBehaviorAsync("overlay-swipe");
+      // Wrap in try-catch to prevent crashes during hot reload or when activity is unavailable
+      NavigationBar.setVisibilityAsync("hidden").catch((error) => {
+        console.log(
+          "NavigationBar.setVisibilityAsync error (safe to ignore):",
+          error.message,
+        );
+      });
+      NavigationBar.setBehaviorAsync("overlay-swipe").catch((error) => {
+        console.log(
+          "NavigationBar.setBehaviorAsync error (safe to ignore):",
+          error.message,
+        );
+      });
     }
+
+    // Activate keep-awake to prevent screen from sleeping during gameplay
+    activateKeepAwakeAsync("tetris-game").catch((error) => {
+      console.log(
+        "Keep awake activation error (safe to ignore):",
+        error.message,
+      );
+    });
 
     return () => {
       unsubscribeAuth();
       unsubscribeNetInfo();
+      deactivateKeepAwake("tetris-game");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
