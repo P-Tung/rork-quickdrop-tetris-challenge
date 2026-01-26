@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { auth, firestore } from "@/lib/firebase";
 import { LeaderboardModal } from "@/components/LeaderboardModal";
 import NetInfo from "@react-native-community/netinfo";
+import { audioManager } from "@/src/utils/audioManager";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -195,6 +196,8 @@ export default function TetrisGame() {
     { id: number; value: number; x: number; y: number }[]
   >([]);
   const nextFloatingId = useRef(0);
+  const [comboCount, setComboCount] = useState(0);
+  const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bagRef = useRef<TetrominoType[]>([]);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -285,6 +288,11 @@ export default function TetrisGame() {
         .map(() => Array(BOARD_WIDTH).fill(null)),
     );
     startAttractMode();
+
+    // Initialize audio manager for combo sounds
+    audioManager.initialize().catch((error) => {
+      console.log("Failed to initialize audio:", error);
+    });
 
     // Initialize Firebase Anonymous Auth and sync on auth state change
     const unsubscribeAuth = auth().onAuthStateChanged(async (user) => {
@@ -498,6 +506,10 @@ export default function TetrisGame() {
     updateBoard(emptyBoard);
     setScore(0);
     setGameoverReason(null);
+    setComboCount(0);
+    if (comboTimerRef.current) {
+      clearTimeout(comboTimerRef.current);
+    }
 
     // Spawn a fresh piece for the game - USE REF to avoid stale closure
     if (nextQueueRef.current.length > 0) {
@@ -569,6 +581,10 @@ export default function TetrisGame() {
     setTimeLeft(60);
     setLineFlashRows([]);
     setGameoverReason(null);
+    setComboCount(0);
+    if (comboTimerRef.current) {
+      clearTimeout(comboTimerRef.current);
+    }
 
     spawnPiece(initialQueue[0], emptyBoard);
 
@@ -750,6 +766,19 @@ export default function TetrisGame() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
       }
+
+      // Increment combo and play combo sound
+      const newCombo = comboCount + 1;
+      setComboCount(newCombo);
+      audioManager.playComboSound(newCombo);
+
+      // Reset combo after 2 seconds of no line clears
+      if (comboTimerRef.current) {
+        clearTimeout(comboTimerRef.current);
+      }
+      comboTimerRef.current = setTimeout(() => {
+        setComboCount(0);
+      }, 2000);
 
       Animated.sequence([
         Animated.timing(scoreGlow, {
